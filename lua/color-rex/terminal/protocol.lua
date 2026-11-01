@@ -5,20 +5,29 @@
 -- A color with no value comes back empty, as in `foreground=`, so a missing color
 -- is stated rather than implied.
 --
--- OSC 21 is the kitty color protocol. Ghostty lists it as an external protocol
--- and treats any deviation from the spec as a bug, so this is a contract:
+-- OSC 21 is the kitty color protocol. Ghostty lists it as an external protocol and
+-- treats any deviation from the spec as a bug, so this is a contract:
 -- https://sw.kovidgoyal.net/kitty/color-stack/
 -- https://ghostty.org/docs/vt/external
 --
 -- Neovim strips the terminator before we see a reply.
 --
--- parse() never raises, whatever it is given. Anything can arrive on this
--- channel, so malformed input is not an error: it is simply not an event.
+-- parse() never raises, whatever it is given. Anything can arrive on this channel,
+-- so malformed input is not an error: it is simply not an event.
 local M = {}
 
 local MAX_REPLY = 512 -- a full reply is about 320 bytes
 
 local SPECIAL = { foreground = "fg", background = "bg", cursor = "cursor" }
+
+--- The request for every color a theme has that the terminal will report.
+M.REQUEST = (function()
+  local keys = { "foreground=?", "background=?", "cursor=?" }
+  for slot = 0, 15 do
+    keys[#keys + 1] = slot .. "=?"
+  end
+  return "\027]21;" .. table.concat(keys, ";") .. "\027\\"
+end)()
 
 --- A color value as "#rrggbb", or nil. OSC 21 always sends two digits per channel.
 local function color(text)
@@ -29,10 +38,10 @@ end
 local function parse_theme(body)
   local theme = { ansi = {} }
   for key, value in body:gmatch("([^;=]+)=([^;]*)") do
-    local slot = tonumber(key)
+    local slot = key:match("^%d%d?$") and tonumber(key)
     if SPECIAL[key] then
       theme[SPECIAL[key]] = color(value)
-    elseif slot and slot >= 0 and slot <= 15 then
+    elseif slot and slot <= 15 then
       theme.ansi[slot] = color(value)
     end
   end
@@ -40,12 +49,13 @@ local function parse_theme(body)
 end
 
 --- Turn one terminal reply into an event, or nil.
----   { kind = "theme", theme = {...} }  the answer to request()
+---   { kind = "theme", theme = {...} }  the answer to REQUEST
 ---   { kind = "changed" }               the terminal says its theme changed
 ---
---- We never send OSC 11, so an OSC 11 reply can only be Neovim's. It asks when a
---- libghostty terminal sends mode 2031, and it consumes that report itself, so
---- this reply is the one trace of the report that reaches a plugin.
+--- We never send OSC 11, so an OSC 11 reply is someone else's: Neovim asks when a
+--- libghostty terminal sends mode 2031, and it consumes that report itself, so this
+--- reply is the one trace of the report that reaches a plugin. Anything else that
+--- asks only costs one spare query.
 function M.parse(sequence)
   if type(sequence) ~= "string" or #sequence > MAX_REPLY then
     return nil
@@ -58,15 +68,6 @@ function M.parse(sequence)
     return { kind = "changed" }
   end
   return nil
-end
-
---- The request for every color a theme has that the terminal will report.
-function M.request()
-  local keys = { "foreground=?", "background=?", "cursor=?" }
-  for slot = 0, 15 do
-    keys[#keys + 1] = slot .. "=?"
-  end
-  return "\027]21;" .. table.concat(keys, ";") .. "\027\\"
 end
 
 return M

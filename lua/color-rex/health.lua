@@ -1,9 +1,11 @@
 -- :checkhealth color-rex
+local Config = require("color-rex.config")
+
 local M = {}
 
 function M.check()
   local health = vim.health
-  health.start("color-rex")
+  health.start(Config.NAME)
 
   if vim.fn.has("nvim-0.12") == 1 then
     health.ok(("Neovim %s (tested floor: 0.12)"):format(tostring(vim.version())))
@@ -12,10 +14,11 @@ function M.check()
     return
   end
 
-  if vim.g.colors_name == "color-rex" then
-    health.ok("colorscheme color-rex is active")
+  if vim.g.colors_name == Config.NAME then
+    health.ok(("colorscheme %s is active"):format(Config.NAME))
   else
-    health.warn(("the active colorscheme is %s"):format(tostring(vim.g.colors_name)), "Run :colorscheme color-rex")
+    health.warn(("the active colorscheme is %s"):format(tostring(vim.g.colors_name)),
+      ("Run :colorscheme %s"):format(Config.NAME))
   end
 
   -- An answer to OSC 21 is the proof. TERM_PROGRAM only supports the diagnosis:

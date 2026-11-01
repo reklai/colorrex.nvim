@@ -1,5 +1,5 @@
--- A lualine theme, by role. Nothing here depends on lualine; the compiled table
--- reaches it through lua/lualine/themes/color-rex.lua.
+-- A lualine theme, in terms of roles. Nothing here depends on lualine: the compiled
+-- table reaches it through lua/lualine/themes/color-rex.lua.
 local M = {}
 
 function M.build()

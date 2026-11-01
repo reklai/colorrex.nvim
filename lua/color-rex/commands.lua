@@ -1,6 +1,6 @@
--- One catalog of commands. `:ColorRex`, its subcommands, their <Plug> mappings
--- and the Lua API all resolve here, so a keybind and a typed command can never
--- behave differently. Adding an entry adds it everywhere, completion included.
+-- One catalog of commands. `:ColorRex`, its subcommands and their <Plug> mappings
+-- all resolve here, so a keybind and a typed command can never behave differently.
+-- Adding an entry adds it everywhere, completion included.
 local M = {}
 
 --- Bare `:ColorRex`, the one you run all the time. It has no subcommand name.

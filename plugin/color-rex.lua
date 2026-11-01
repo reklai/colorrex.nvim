@@ -22,8 +22,7 @@ end, {
   end,
 })
 
--- <Plug> mappings bind nothing by themselves. Map one to any key you like:
---   vim.keymap.set("n", "<leader>ts", "<Plug>(color-rex)")
+-- <Plug> mappings bind no key themselves; a user maps one to any key they like.
 vim.keymap.set("n", "<Plug>(color-rex)", function()
   require("color-rex").command({}, false)
 end, { desc = "color-rex: " .. Commands.default.desc })

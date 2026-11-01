@@ -10,8 +10,9 @@ What happens between a theme existing in your terminal and it being on screen.
 
 3. The colorscheme is painted at once. The first frame never waits on the terminal.
 
-4. `App:attach()` creates a query and subscribes to `TermResponse`,
-   `FocusGained`, `VimResume`, `UIEnter`, `ColorScheme` and `VimLeavePre`.
+4. `App:attach()` creates the `terminal` machine and subscribes to `TermResponse`,
+   `FocusGained`, `VimResume`, `UIEnter`, `ColorScheme` and `VimLeavePre`, and to
+   changes to the saved theme.
 
 5. When a terminal UI is ready, `App:sync("launch")` starts a query. During
    startup that is `UIEnter`. With no terminal attached, nothing is sent.
@@ -89,7 +90,9 @@ reported, in either terminal.
 
 Neovim also flips `'background'` and re-sources the colorscheme. Painting then
 would force `'background'` straight back, so `App:load()` syncs instead. With
-`auto` off it does paint, because only `:ColorRex` may change the colors.
+`auto` off, or with no terminal to ask, it repaints the current colors instead, and
+always from outside the option handler: setting the option back from inside it
+makes Neovim abandon the colorscheme.
 
 Both paths are needed. A user who sets `'background'` makes Neovim delete its
 detection, which leaves only the first. Both are covered in `test/e2e/rex.lua`.

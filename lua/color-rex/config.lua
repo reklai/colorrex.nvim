@@ -11,9 +11,9 @@ M.defaults = {
   -- Minimum contrast for code against the background. Up to 4.5, which every
   -- possible background can reach.
   contrast = 3.0,
-  -- Give every theme its own casting: which color plays keywords, functions, types,
-  -- numbers and operators. Off: every theme uses the same fixed mapping, so nearly
-  -- identical themes look like the same colorscheme.
+  -- Give every theme its own casting: which of its colors plays each syntax role.
+  -- Off: every theme uses the same fixed mapping, so nearly identical themes look
+  -- like the same colorscheme.
   identity = true,
   -- Also sync on focus and on dark/light notifications. These cost nothing
   -- while idle. Off: only :ColorRex changes colors after launch.

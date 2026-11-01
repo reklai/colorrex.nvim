@@ -20,25 +20,31 @@ lua/color-rex.lua           the public API; owns one App
 lua/color-rex/
   app.lua                   when colors change
   commands.lua              the catalog behind :ColorRex and <Plug>
+  report.lua                what the commands say
   config.lua                options, and the one name
   neovim.lua                every side effect
   health.lua                :checkhealth
   terminal.lua              asks the terminal for its colors
   terminal/protocol.lua       what those bytes mean
   theme.lua                 the theme format, read and written
-  compiler.lua              a theme to a colorscheme
-  compiler/solver.lua         colors to roles
-  compiler/casting.lua        which color plays which role
-  compiler/groups.lua         roles to highlight groups
-  compiler/lualine.lua        roles to a lualine theme
+  roles.lua                 colors to meanings
+  roles/casting.lua           which color plays which role
+  groups.lua                meanings to highlight groups
+  groups/                     one file per area of the editor
+  lualine.lua               meanings to a lualine theme
+  compiler.lua              runs the pipeline, theme to colorscheme
   compiler/promises.lua       the promises, as checks
   compiler/standalone.lua     a colorscheme to a Lua file
   color.lua                 color math
 ```
 
-One rule explains the shape: **`x.lua` is the public face of `x/`.** Nothing
-outside `compiler/` may require a module inside it. Everything else is a single
-file because it is a single thing.
+The pipeline reads in order: `theme`, `roles`, `groups`. One rule explains the
+shape: **`x.lua` is the public face of `x/`.** Nothing outside `roles/` may require
+a module inside it, and the same goes for `groups/`, `compiler/` and `terminal/`.
+Everything else is a single file because it is a single thing.
+
+To support a plugin, add its groups to `groups/plugins.lua`. A group defined in two
+areas is refused at compile time.
 
 ## The rules
 
@@ -52,8 +58,8 @@ file because it is a single thing.
    the graph in `test_boundaries.lua`, on purpose.
 4. **Zero dependencies.** No `require` leaves the plugin. Lualine support is a
    file lualine finds by name; nothing here requires lualine.
-5. **`compiler/groups.lua` and `compiler/lualine.lua` hold no colors.** They name
-   roles, so no group can drift from the theme.
+5. **`groups/` and `lualine.lua` hold no colors.** They name roles, so no group
+   can drift from the theme.
 
 ## Vocabulary
 
@@ -66,18 +72,21 @@ Use these words, in code and in prose.
 | completeness | How much of a theme is present: `full`, `partial` or `none`. |
 | role | What a color means in an editor: `keyword`, `error`, `accent`. |
 | fingerprint | A number computed from a theme. The id is its short form. |
-| casting | Which of a theme's colors plays which role. |
+| arrangement | One assignment of colors to roles. |
+| casting | The arrangement a theme uses, by number. |
 | group spec | A highlight group written in roles. |
 | colorscheme | The compiler's output, everything needed to paint. |
 | query | One request to the terminal. `terminal.query()` starts one. |
 | settle | A query ends: with the reply, or at the timeout. |
-| outcome | How a query settled: `reply`, `timeout`, `late reply`. |
-| reason | What started a sync: `launch`, `focus`, `manual`, `retry`, `broadcast`. |
-| broadcast | Another Neovim saving a theme, heard through the state file. |
+| attached | This colorscheme is active and listening. `App.terminal` exists exactly then. |
+| outcome | How a query settled: `reply`, `late reply`, `timeout`, `send failed`. |
+| reason | What started a sync: `launch`, `focus`, `resume`, `mode`, `background`, `manual`, `retry`, `broadcast`. |
+| saved theme | The last complete theme, in the state directory. It is what the first frame shows. |
+| broadcast | Another Neovim saving a theme, noticed by watching that file. |
 | sync | Run a query and repaint if the theme changed. |
 | repaint | Apply a colorscheme through `:colorscheme`. |
 | render | The host setting the highlights. |
-| note | A record of an adjustment the solver made. |
+| note | A record of an adjustment made to a color or role. |
 | message | Text shown to the user through the host. |
 | host | The object `App` does everything through. |
 
@@ -99,15 +108,24 @@ treats any deviation from the spec as a bug.
 
 **Every theme gets its own casting.** A faithful compiler turns nearly identical
 palettes into nearly identical colors, so no amount of color work can separate
-them: 155 of Ghostty's 819 themes read as a twin of another in code, and most of
-those differ only in their background. No terminal theme says which color is a
-keyword, so that is where themes can differ. A fingerprint picks one of 60
-arrangements, at least 3 roles apart, and only moves colors between roles. Each
-compile sees one theme, so two themes can still draw the same arrangement: this
-cuts lookalikes, it cannot eliminate them, and the conformance suite bounds them.
-The cost is that editing one color of a theme can reshuffle its casting.
+them: with a fixed mapping, 152 of Ghostty's 819 themes read as a twin of another in
+code, and most of those differ only in their background. No terminal theme says
+which color is a keyword, so that is where themes can differ.
 
-**The state file doubles as a signal.** This idea is from `tinted-osc-colors.nvim`.
+The arrangements are the even permutations of seven roles. That is 2,520 of them,
+and any two are at least three roles apart by construction: differing in exactly
+two would be a single swap, which is odd. Every one is scored against the theme,
+first for syntax roles that would look alike and then for keywords, functions and
+types sharing a hue, and the fingerprint chooses among the best.
+
+This did not have to be a tradeoff. Picking by fingerprint alone gave 8 twins and
+put one hue on two leading roles in 180 themes, against 49 with the fixed mapping.
+Scoring gives 0 twins, 4 themes within two roles of another, and 11 hue clashes, 9
+of which have no clean choice in the palette at all. It costs 0.1ms more per
+compile, for 0.2ms in all, and 1.3ms when the plugin loads. Editing one color of a
+theme can still reshuffle its casting.
+
+**The saved theme doubles as a signal.** This idea is from `tinted-osc-colors.nvim`.
 One Neovim noticing a change is enough for all of them to check, and because the
 watcher is an event, it costs nothing idle. Unlike that plugin, a Neovim here
 treats the file as a nudge and asks its own terminal, since Rex blocks can differ.

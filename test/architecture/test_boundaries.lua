@@ -11,19 +11,31 @@ local GRAPH = {
   ["color-rex.terminal.protocol"] = {},
   ["color-rex.terminal"] = { "color-rex.terminal.protocol" },
   ["color-rex.theme"] = { "color-rex.color" },
-  ["color-rex.compiler.groups"] = {},
-  ["color-rex.compiler.lualine"] = {},
-  ["color-rex.compiler.standalone"] = {},
-  ["color-rex.compiler.casting"] = {},
-  ["color-rex.compiler.solver"] = { "color-rex.color", "color-rex.compiler.casting" },
-  ["color-rex.compiler.promises"] = { "color-rex.color", "color-rex.compiler.solver" },
-  ["color-rex.compiler"] = {
-    "color-rex.compiler.casting", "color-rex.compiler.groups", "color-rex.compiler.lualine", "color-rex.compiler.promises",
-    "color-rex.compiler.solver", "color-rex.compiler.standalone", "color-rex.theme",
+  ["color-rex.groups.editor"] = {},
+  ["color-rex.groups.syntax"] = {},
+  ["color-rex.groups.treesitter"] = {},
+  ["color-rex.groups.lsp"] = {},
+  ["color-rex.groups.diagnostics"] = {},
+  ["color-rex.groups.plugins"] = {},
+  ["color-rex.groups"] = {
+    "color-rex.groups.diagnostics", "color-rex.groups.editor", "color-rex.groups.lsp",
+    "color-rex.groups.plugins", "color-rex.groups.syntax", "color-rex.groups.treesitter",
   },
-  ["color-rex.app"] = { "color-rex.compiler", "color-rex.config", "color-rex.terminal", "color-rex.theme" },
+  ["color-rex.lualine"] = {},
+  ["color-rex.roles.casting"] = { "color-rex.color" },
+  ["color-rex.roles"] = { "color-rex.color", "color-rex.roles.casting" },
+  ["color-rex.compiler.standalone"] = {},
+  ["color-rex.compiler.promises"] = { "color-rex.color", "color-rex.roles" },
+  ["color-rex.compiler"] = {
+    "color-rex.compiler.promises", "color-rex.compiler.standalone", "color-rex.groups", "color-rex.lualine",
+    "color-rex.roles", "color-rex.theme",
+  },
+  ["color-rex.report"] = {},
+  ["color-rex.app"] = {
+    "color-rex.compiler", "color-rex.config", "color-rex.report", "color-rex.terminal", "color-rex.theme",
+  },
   ["color-rex.neovim"] = { "color-rex.config" },
-  ["color-rex.health"] = { "color-rex" },
+  ["color-rex.health"] = { "color-rex", "color-rex.config" },
   ["color-rex"] = { "color-rex.app", "color-rex.commands", "color-rex.config", "color-rex.neovim" },
 }
 
@@ -162,8 +174,12 @@ T.test("architecture: one name everywhere", function()
   end
 end)
 
-T.test("architecture: group modules name roles, there is not one color literal", function()
-  for _, name in ipairs({ "groups", "lualine" }) do
-    T.ok(not read(("%s/lua/color-rex/compiler/%s.lua"):format(T.root, name)):match("#%x%x%x%x%x%x"), name)
+T.test("architecture: groups and lualine name roles, there is not one color literal", function()
+  local paths = files("lua/color-rex/groups")
+  paths[#paths + 1] = T.root .. "/lua/color-rex/groups.lua"
+  paths[#paths + 1] = T.root .. "/lua/color-rex/lualine.lua"
+  T.ok(#paths == 8, "every area must be scanned")
+  for _, path in ipairs(paths) do
+    T.ok(not read(path):match("#%x%x%x%x%x%x"), path)
   end
 end)

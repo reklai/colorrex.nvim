@@ -25,6 +25,11 @@ T.test("protocol: a real full reply fits, at 320 bytes", function()
   T.ok(Protocol.parse(F.reply(F.theme())))
 end)
 
+T.test("protocol: only a plain slot number is a slot", function()
+  local event = Protocol.parse("\027]21;1e1=rgb:11/22/33;0x1=rgb:11/22/33;1.5=rgb:11/22/33;-1=rgb:11/22/33")
+  T.eq(next(event.theme.ansi), nil)
+end)
+
 T.test("protocol: keys it does not know are skipped", function()
   local event = Protocol.parse("\027]21;selection_background=rgb:11/22/33;16=rgb:11/22/33;0=rgb:ff/00/00")
   T.eq(event.theme.selection_background, nil)
@@ -38,7 +43,7 @@ T.test("protocol: an OSC 11 reply means the terminal reported a change", functio
 end)
 
 T.test("protocol: we never ask for OSC 11, which is what makes that reply a signal", function()
-  T.ok(not Protocol.request():find("]11;", 1, true))
+  T.ok(not Protocol.REQUEST:find("]11;", 1, true))
 end)
 
 T.test("protocol: color forms OSC 21 never sends are skipped", function()
@@ -50,7 +55,7 @@ T.test("protocol: color forms OSC 21 never sends are skipped", function()
 end)
 
 T.test("protocol: one request asks all 19 colors", function()
-  local request = Protocol.request()
+  local request = Protocol.REQUEST
   T.eq(select(2, request:gsub("=%?", "")), 19)
   T.ok(request:sub(1, 5) == "\027]21;")
   T.ok(request:sub(-2) == "\027\\", "ST-terminated, as the terminal echoes it")

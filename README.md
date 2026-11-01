@@ -22,10 +22,11 @@ keeps its hue. `:ColorRex explain` shows where any color came from.
 **Unique.** Every theme is its own colorscheme, not a tint of another. Each of the
 twelve chromatic ANSI colors has a job on screen, and your cursor color is the
 accent. Nearly identical palettes would otherwise look identical in code, so each
-theme also gets its own casting: a fingerprint of the theme decides which of its
-colors plays keywords, functions, types, numbers and operators. No color changes,
-strings and comments stay put, and `:ColorRex status` shows the theme's id. Roles
-the palette cannot separate by color differ by weight or slant.
+theme also gets its own casting: which of its colors plays keywords, functions,
+types, numbers and the rest. Casting never changes a color, strings and comments
+stay put, and it is chosen so that the roles you read side by side stay apart.
+`:ColorRex status` shows the theme's id. Roles the palette cannot separate by color
+differ by weight or slant.
 
 **Dynamic.** Ghostty reports every config reload, so theme changes apply by
 themselves. Rex reports dark and light changes; a change to a theme of the same
@@ -108,7 +109,8 @@ require("color-rex").setup({
 
 With `identity = false`, every theme uses the same fixed mapping: keywords are
 always magenta, functions blue. That is predictable, but nearly identical themes
-then look like the same colorscheme.
+then look like the same colorscheme, and about one in five of Ghostty's themes has
+a twin.
 
 With `auto = false`, colors change only when you run `:ColorRex`.
 

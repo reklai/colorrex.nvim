@@ -13,7 +13,7 @@ function F.theme(overrides)
     },
   }
   for key, value in pairs(overrides or {}) do
-    theme[key] = value
+    theme[key] = value or nil -- `false` removes a field
   end
   return theme
 end
@@ -21,7 +21,7 @@ end
 --- A stand-in for the Neovim host: records effects, and runs time by hand.
 function F.fake_host(overrides)
   local host = {
-    sent = {}, messages = {}, renders = 0, applies = 0, bg = "dark", ready = true, cache = nil,
+    sent = {}, messages = {}, renders = 0, applies = 0, bg = "dark", ready = true, saved = nil,
     now = 0, timers = {}, handlers = nil,
   }
   function host.ui_ready() return host.ready end
@@ -56,8 +56,8 @@ function F.fake_host(overrides)
   function host.subscribe(handlers) host.handlers = handlers end
   function host.unsubscribe() host.handlers = nil end
   function host.notify(message, level) host.messages[#host.messages + 1] = { message = message, level = level } end
-  function host.cache_read() return host.cache end
-  function host.cache_write(text) host.cache = text end
+  function host.saved_theme() return host.saved end
+  function host.save_theme(text) host.saved = text end
   function host.groups_under_cursor() return host.cursor_groups or {} end
   function host.colors_path(name) return "/colors/" .. name .. ".lua" end
   function host.exists(path) return host.files ~= nil and host.files[path] ~= nil end

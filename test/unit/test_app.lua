@@ -33,7 +33,7 @@ T.test("app: the first frame of a later launch is the last real theme", function
   local app, host = start()
   app:load()
   answer(app, DRACULA)
-  local second, next_host = start({ cache = host.cache })
+  local second, next_host = start({ saved = host.saved })
   next_host.ready = false
   second:load()
   T.eq(next_host.shown.filled.bg, "#282a36")
@@ -127,8 +127,8 @@ T.test("broadcast: another Neovim's write makes this one ask its own terminal", 
   app:load()
   answer(app, F.theme())
   local sent = #host.sent
-  host.cache = Theme.serialize(DRACULA) -- what another Neovim just saved
-  host.handlers.cache_changed()
+  host.saved = Theme.serialize(DRACULA) -- what another Neovim just saved
+  host.handlers.theme_saved()
   host.advance(30)
   T.eq(#host.sent, sent + 1)
   T.eq(host.shown.filled.bg, "#1b1f27", "the file is a nudge, its colors are never used")
@@ -141,7 +141,7 @@ T.test("broadcast: its own write costs no query", function()
   app:load()
   answer(app, F.theme())
   local sent = #host.sent
-  host.handlers.cache_changed()
+  host.handlers.theme_saved()
   host.advance(30)
   T.eq(#host.sent, sent)
 end)
@@ -151,13 +151,53 @@ T.test("broadcast: a burst of filesystem events is one query", function()
   app:load()
   answer(app, F.theme())
   local sent = #host.sent
-  host.cache = Theme.serialize(DRACULA)
+  host.saved = Theme.serialize(DRACULA)
   for _ = 1, 5 do
-    host.handlers.cache_changed()
+    host.handlers.theme_saved()
   end
   host.advance(30)
   answer(app, DRACULA) -- without the wait, the extra events would queue a second query
   T.eq(#host.sent, sent + 1)
+end)
+
+T.test("app: changing options recompiles the current theme", function()
+  local app = start()
+  app:load()
+  answer(app, DRACULA)
+  local before = app.colorscheme.roles.keyword.hex
+  app:configure(Config.resolve({ identity = false }))
+  T.eq(app.colorscheme.roles.keyword.source, "ansi 5")
+  T.eq(app.colorscheme.filled.bg, "#282a36")
+  T.ok(before)
+end)
+
+T.test("app: launch resets the retries for a fresh start", function()
+  local app, host = start()
+  app:load()
+  local partial = F.theme({ fg = false, bg = false, cursor = false })
+  for _ = 1, 4 do
+    answer(app, partial)
+    host.advance(5000)
+  end
+  T.eq(app.retries, 3)
+  app:sync("launch")
+  T.eq(app.retries, 0)
+end)
+
+T.test("app: a sync while detached with no terminal says so", function()
+  local app, host = start({ ready = false })
+  app:load()
+  host.handlers.colorscheme_changed("habamax")
+  app:sync("manual")
+  T.ok(host.messages[1].message:match("no terminal"), "must report, not stay silent")
+  T.eq(app.announce, false)
+end)
+
+T.test("status: says when a query is still in flight", function()
+  local app = start()
+  app:load()
+  local Report = require("color-rex.report")
+  T.ok(Report.status(app:status()):match("launch: waiting"))
 end)
 
 T.test("broadcast: a follower never rewrites the file, so the chain ends", function()
@@ -165,13 +205,13 @@ T.test("broadcast: a follower never rewrites the file, so the chain ends", funct
   app:load()
   answer(app, F.theme())
   local writes = 0
-  local write = host.cache_write
-  host.cache_write = function(text)
+  local write = host.save_theme
+  host.save_theme = function(text)
     writes = writes + 1
     write(text)
   end
-  host.cache = Theme.serialize(DRACULA)
-  host.handlers.cache_changed()
+  host.saved = Theme.serialize(DRACULA)
+  host.handlers.theme_saved()
   host.advance(30)
   answer(app, DRACULA)
   T.eq(writes, 0, "the file already says this")
@@ -181,14 +221,14 @@ T.test("broadcast: a block showing its own theme ignores it and writes nothing",
   local app, host = start()
   app:load()
   answer(app, F.theme())
-  local mine = host.cache
-  host.cache = Theme.serialize(DRACULA)
-  host.handlers.cache_changed()
+  local mine = host.saved
+  host.saved = Theme.serialize(DRACULA)
+  host.handlers.theme_saved()
   host.advance(30)
-  local other = host.cache
+  local other = host.saved
   answer(app, F.theme()) -- this block still shows its own theme
   T.eq(host.shown.filled.bg, "#1b1f27")
-  T.eq(host.cache, other, "and it does not overwrite the other block's theme")
+  T.eq(host.saved, other, "and it does not overwrite the other block's theme")
   T.ok(mine ~= other)
 end)
 
@@ -198,8 +238,8 @@ T.test("broadcast: auto off ignores it", function()
   app:load()
   answer(app, F.theme())
   local sent = #host.sent
-  host.cache = Theme.serialize(DRACULA)
-  host.handlers.cache_changed()
+  host.saved = Theme.serialize(DRACULA)
+  host.handlers.theme_saved()
   host.advance(30)
   T.eq(#host.sent, sent)
 end)
@@ -209,8 +249,8 @@ T.test("broadcast: leaving cancels a pending check", function()
   app:load()
   answer(app, F.theme())
   local sent = #host.sent
-  host.cache = Theme.serialize(DRACULA)
-  host.handlers.cache_changed()
+  host.saved = Theme.serialize(DRACULA)
+  host.handlers.theme_saved()
   host.handlers.leaving()
   host.advance(30)
   T.eq(#host.sent, sent)
@@ -231,6 +271,18 @@ T.test("notice: a terminal that never answers is told so, once, in one short lin
   host.advance(500)
   host.advance(5000)
   T.eq(#host.messages, 1, "once is enough")
+end)
+
+T.test("notice: a focus event at startup does not swallow it", function()
+  -- Terminals send a focus event the moment reporting is enabled, so in a terminal
+  -- that needs this notice, the launch query is usually not the one that settles.
+  local app, host = start()
+  app:load()
+  host.handlers.focus()
+  host.advance(500) -- the launch query, replaced by the rerun
+  host.advance(500) -- the rerun, whose reason is now focus
+  host.advance(2000)
+  T.eq(#host.messages, 1)
 end)
 
 T.test("notice: a slow answer cancels it", function()
@@ -287,6 +339,29 @@ T.test("app: a silent terminal is not retried and nothing changes", function()
   host.advance(10000)
   T.eq(#host.sent, 1)
   T.eq(host.shown, shown)
+end)
+
+T.test("app: repaints when 'background' disagrees and the terminal has nothing to offer", function()
+  local app, host = start()
+  app:load()
+  answer(app, F.theme())
+  local applies = host.applies
+  host.bg = "light"
+  app:sync("manual")
+  host.advance(500) -- no answer
+  T.eq(host.applies, applies + 1)
+  T.eq(host.bg, "dark")
+end)
+
+T.test("app: with no terminal, 'background' flipping restores the colors once we are out of the handler", function()
+  local app, host = start({ ready = false })
+  app:load()
+  local renders = host.renders
+  host.bg = "light"
+  app:load()
+  T.eq(host.renders, renders + 1)
+  T.eq(host.bg, "dark")
+  T.eq(host.applies, 1, "through :colorscheme, not from inside the option handler")
 end)
 
 T.test("app: Neovim flipping 'background' does not paint the stale theme back", function()
@@ -366,10 +441,10 @@ T.test("app: another colorscheme detaches, and a sync brings rex back", function
   app:load()
   answer(app, F.theme())
   host.handlers.colorscheme_changed("habamax")
-  T.eq(app.attached, false)
+  T.eq(app.terminal, nil)
   T.eq(host.handlers, nil)
   app:sync("manual")
-  T.eq(app.attached, true)
+  T.ok(app.terminal)
   answer(app, DRACULA)
   answer(app, DRACULA)
   T.eq(host.shown.filled.bg, "#282a36")

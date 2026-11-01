@@ -5,11 +5,10 @@
 -- It is a pure function of (theme, options): no clock, no randomness, no state.
 -- The same input always produces identical output, and a compile takes a small
 -- fraction of a millisecond, so nothing downstream caches compiled groups.
-local Casting = require("color-rex.compiler.casting")
-local Groups = require("color-rex.compiler.groups")
-local Lualine = require("color-rex.compiler.lualine")
+local Groups = require("color-rex.groups")
+local Lualine = require("color-rex.lualine")
 local Promises = require("color-rex.compiler.promises")
-local Solver = require("color-rex.compiler.solver")
+local Roles = require("color-rex.roles")
 local Standalone = require("color-rex.compiler.standalone")
 local Theme = require("color-rex.theme")
 
@@ -41,47 +40,38 @@ end
 function M.compile(theme, opts, background)
   local filled = Theme.fill(theme, background)
   local signature = Theme.signature(filled)
-  local fingerprint = Casting.fingerprint(signature)
-  local arrangement, casting = Casting.arrangement(fingerprint)
-  if not opts.identity then
-    arrangement, casting = Casting.ARRANGEMENTS[1], 1
-  end
-  local roles = Solver.solve(filled, opts, arrangement)
+  local fingerprint = Roles.fingerprint(signature)
+  local solved = Roles.solve(filled, opts, fingerprint)
 
-  local group_specs = Groups.build(opts, roles.styles)
+  local group_specs = Groups.build(opts, solved.styles)
   local groups = {}
   for name, spec in pairs(group_specs) do
-    groups[name] = resolve(spec, roles)
+    groups[name] = resolve(spec, solved.roles)
   end
 
   local lualine = {}
   for mode, sections in pairs(Lualine.build()) do
     lualine[mode] = {}
     for section, spec in pairs(sections) do
-      lualine[mode][section] = resolve(spec, roles)
+      lualine[mode][section] = resolve(spec, solved.roles)
     end
   end
 
-  local terminal_colors = {}
-  for slot = 0, 15 do
-    terminal_colors[slot] = filled.ansi[slot]
-  end
-
   return {
-    -- Identifies this result: what it came from, and how it was compiled.
-    key = ("%s|%s|%s|%s"):format(tostring(opts.contrast), tostring(opts.transparent), tostring(opts.identity), signature),
-    id = ("%06x"):format(fingerprint % 16777216), -- what a person reads; key is what code compares
-    casting = casting,
+    signature = signature,
+    -- What a person reads. Short enough to say out loud, so only nearly unique.
+    id = ("%06x"):format(fingerprint % 0x1000000),
+    casting = solved.casting,
     background = filled.background,
     completeness = Theme.completeness(theme),
-    theme = theme or {},
+    theme = theme,
     filled = filled,
-    roles = roles,
+    roles = solved.roles,
+    styles = solved.styles,
+    notes = solved.notes,
     group_specs = group_specs,
     groups = groups,
-    terminal_colors = terminal_colors,
     lualine = lualine,
-    notes = roles.notes,
   }
 end
 

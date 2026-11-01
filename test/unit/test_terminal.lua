@@ -100,8 +100,9 @@ T.test("terminal: nothing happens after close", function()
   terminal.close()
   host.advance(Terminal.TIMEOUT_MS)
   terminal.feed(F.reply(F.theme()))
+  terminal.query()
   T.eq(#log.settled, 0)
-  T.eq(terminal.query(), false)
+  T.eq(#host.sent, 1)
 end)
 
 T.test("terminal: a failing send settles instead of wedging the machine", function()
@@ -113,7 +114,7 @@ T.test("terminal: a failing send settles instead of wedging the machine", functi
     on_settle = function(_, reason) log[#log + 1] = reason end,
     on_change = function() end,
   })
-  T.eq(terminal.query(), false)
+  terminal.query()
   T.ok(log[1]:match("send failed"))
   T.eq(terminal.phase(), "idle")
 end)

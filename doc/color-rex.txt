@@ -17,7 +17,9 @@ COMMANDS                                                         *:ColorRex*
 
 :ColorRex               Read the terminal's theme and repaint if it changed.
                         Run this after changing to a theme of the same
-                        brightness, because terminals send no signal for that.
+                        brightness in Rex, which sends no signal for that.
+                        Every other Neovim on this machine then checks its own
+                        terminal too.
 
 :ColorRex status        Show the active theme and the last sync.
 
@@ -62,13 +64,13 @@ transparent     Leave the background to the terminal, so its exact color and
 contrast        Minimum contrast for code against the background, from 1 to
                 4.5. Colors below it move in lightness only.
 
-identity        Give every theme its own casting: a fingerprint of the theme
-                decides which of its colors plays keywords, functions, types,
-                numbers and operators. No color changes. When false, every
-                theme uses the same fixed mapping, so nearly identical themes
-                look like the same colorscheme.
+identity        Give every theme its own casting: which of its colors plays
+                keywords, functions, types, numbers and the rest. No color
+                changes. When false, every theme uses the same fixed mapping,
+                so nearly identical themes look like the same colorscheme.
 
-auto            Also sync on focus and on dark or light changes. When false,
+auto            Also sync on focus and on dark or light changes, and when
+                another Neovim on this machine saves a new theme. When false,
                 colors change only through |:ColorRex|.
 
 LUALINE                                                    *color-rex-lualine*

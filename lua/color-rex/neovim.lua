@@ -5,17 +5,12 @@ local Config = require("color-rex.config")
 
 local M = {}
 
-local PREFIX = "color-rex: "
-local GROUP = "color-rex"
-
-local function state_path()
-  return vim.fs.joinpath(vim.fn.stdpath("state"), "color-rex", "theme")
-end
-
 function M.new()
   local host = {}
+  local state_path = vim.fs.joinpath(vim.fn.stdpath("state"), Config.NAME, "theme")
   local watcher
 
+  --- Whether a terminal is there to ask. Until VimEnter a query could race startup.
   function host.ui_ready()
     if vim.v.vim_did_enter ~= 1 then
       return false
@@ -66,9 +61,7 @@ function M.new()
   end
 
   function host.render(colorscheme)
-    if vim.g.colors_name then
-      vim.cmd.highlight("clear") -- this also unsets g:colors_name
-    end
+    vim.cmd.highlight("clear") -- this also unsets g:colors_name
     vim.g.colors_name = Config.NAME
     vim.o.termguicolors = true
     if vim.o.background ~= colorscheme.background then
@@ -79,7 +72,7 @@ function M.new()
       set(0, group, spec)
     end
     for slot = 0, 15 do
-      vim.g["terminal_color_" .. slot] = colorscheme.terminal_colors[slot]
+      vim.g["terminal_color_" .. slot] = colorscheme.filled.ansi[slot]
     end
   end
 
@@ -88,42 +81,41 @@ function M.new()
   end
 
   function host.subscribe(handlers)
-    local group = vim.api.nvim_create_augroup(GROUP, { clear = true })
-    local autocmd = vim.api.nvim_create_autocmd
-    autocmd("TermResponse", {
-      group = group,
-      callback = function(ev)
-        if ev.data then
-          handlers.response(ev.data.sequence)
-        end
-      end,
-    })
-    autocmd("FocusGained", { group = group, callback = function() handlers.focus() end })
-    autocmd("VimResume", { group = group, callback = function() handlers.resume() end })
-    autocmd("UIEnter", { group = group, callback = function() handlers.ui_enter() end })
-    autocmd("VimLeavePre", { group = group, callback = function() handlers.leaving() end })
-    autocmd("ColorScheme", {
-      group = group,
-      callback = function(ev)
-        handlers.colorscheme_changed(ev.match)
-      end,
-    })
-    -- Best effort, like the cache it watches: without it, a Neovim just waits for
-    -- its own focus event or sync. It is event-driven, so it costs nothing idle.
-    local directory = vim.fs.dirname(state_path())
+    local group = vim.api.nvim_create_augroup(Config.NAME, { clear = true })
+    local function on(event, handler)
+      vim.api.nvim_create_autocmd(event, {
+        group = group,
+        callback = function(ev)
+          handler(ev) -- a truthy return would delete the autocommand
+        end,
+      })
+    end
+    on("TermResponse", function(ev)
+      handlers.response(ev.data.sequence)
+    end)
+    on("FocusGained", handlers.focus)
+    on("VimResume", handlers.resume)
+    on("UIEnter", handlers.ui_enter)
+    on("VimLeavePre", handlers.leaving)
+    on("ColorScheme", function(ev)
+      handlers.colorscheme_changed(ev.match)
+    end)
+    -- Best effort, like the file it watches: without it, a Neovim just waits for its
+    -- own focus event or sync. It is event-driven, so it costs nothing idle.
+    local directory = vim.fs.dirname(state_path)
     pcall(vim.fn.mkdir, directory, "p")
     watcher = vim.uv.new_fs_event()
     if watcher then
       watcher:start(directory, {}, function(err, name)
-        if not err and name == vim.fs.basename(state_path()) then
-          vim.schedule(handlers.cache_changed)
+        if not err and name == vim.fs.basename(state_path) then
+          vim.schedule(handlers.theme_saved)
         end
       end)
     end
   end
 
   function host.unsubscribe()
-    pcall(vim.api.nvim_del_augroup_by_name, GROUP)
+    pcall(vim.api.nvim_del_augroup_by_name, Config.NAME)
     if watcher then
       watcher:close()
       watcher = nil
@@ -132,11 +124,11 @@ function M.new()
 
   function host.notify(message, level)
     local levels = { warn = vim.log.levels.WARN, error = vim.log.levels.ERROR }
-    vim.notify(PREFIX .. message, levels[level] or vim.log.levels.INFO)
+    vim.notify(Config.NAME .. ": " .. message, levels[level] or vim.log.levels.INFO)
   end
 
-  function host.cache_read()
-    local file = io.open(state_path(), "r")
+  function host.saved_theme()
+    local file = io.open(state_path, "r")
     if not file then
       return nil
     end
@@ -145,19 +137,18 @@ function M.new()
     return text
   end
 
-  --- Best effort, and atomic: another Neovim may be reading this file, and a
-  --- lost cache only costs one first frame.
-  function host.cache_write(text)
-    local path = state_path()
-    pcall(vim.fn.mkdir, vim.fs.dirname(path), "p")
-    local temp = ("%s.%d"):format(path, vim.uv.os_getpid())
+  --- Best effort, and atomic: another Neovim may be reading this file, and losing
+  --- it only costs one first frame.
+  function host.save_theme(text)
+    pcall(vim.fn.mkdir, vim.fs.dirname(state_path), "p")
+    local temp = ("%s.%d"):format(state_path, vim.uv.os_getpid())
     local file = io.open(temp, "w")
     if not file then
       return
     end
     file:write(text)
     file:close()
-    if not os.rename(temp, path) then
+    if not os.rename(temp, state_path) then
       os.remove(temp)
     end
   end
@@ -170,6 +161,7 @@ function M.new()
       for index = #list, 1, -1 do
         local item = list[index]
         names[#names + 1] = item.opts and item.opts.hl_group or item.hl_group
+        names[#names + 1] = item.hl_group_link -- a syntax file's own name links to ours
       end
     end
     return names

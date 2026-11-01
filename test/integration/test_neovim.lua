@@ -87,7 +87,7 @@ T.test("neovim: a compiled standalone colorscheme loads with the plugin out of t
   vim.fn.mkdir(dir .. "/colors", "p")
   local before = hl("Comment", "fg")
   local Compiler = require("color-rex.compiler")
-  local text = Compiler.standalone(Compiler.compile({}, require("color-rex.config").resolve()), "standalone")
+  local text = Compiler.standalone(Compiler.compile({ ansi = {} }, require("color-rex.config").resolve()), "standalone")
   local file = assert(io.open(dir .. "/colors/standalone.lua", "w"))
   file:write(text)
   file:close()
@@ -132,6 +132,46 @@ local function live_app(options)
     package.loaded["color-rex"] = nil
   end
 end
+
+T.test("neovim: 'background' set right after the colorscheme, during startup, does not lose it", function()
+  local dir = vim.fn.tempname()
+  vim.fn.mkdir(dir, "p")
+  local init = dir .. "/init.lua"
+  local file = assert(io.open(init, "w"))
+  file:write(([[
+vim.opt.rtp:prepend(%q)
+vim.cmd("runtime plugin/color-rex.lua")
+vim.cmd.colorscheme("color-rex")
+vim.o.background = "light"
+vim.api.nvim_create_autocmd("VimEnter", { callback = function()
+  vim.defer_fn(function()
+    io.stdout:write(tostring(vim.g.colors_name) .. ":" .. vim.o.background)
+    vim.cmd("qa!")
+  end, 50)
+end })
+]]):format(RT))
+  file:close()
+  local result = vim.system({ vim.v.progpath, "--headless", "-n", "-u", init },
+    { text = true, env = { XDG_STATE_HOME = dir } }):wait(10000)
+  T.ok(result.stdout:match("^color%-rex:dark"), result.stdout .. (result.stderr or ""))
+end)
+
+T.test("neovim: explain follows a syntax file's own group to the one we define", function()
+  local buf = vim.api.nvim_create_buf(true, true)
+  vim.api.nvim_set_current_buf(buf)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "# a comment" })
+  colorscheme()
+  vim.cmd("syntax enable")
+  vim.bo[buf].syntax = "conf"
+  vim.api.nvim_win_set_cursor(0, { 1, 4 })
+  local notes = {}
+  local notify = vim.notify
+  vim.notify = function(message) notes[#notes + 1] = message end
+  vim.cmd("ColorRex explain")
+  vim.notify = notify
+  T.ok(notes[1]:match("Comment"), notes[1])
+  T.ok(not notes[1]:match("not a group"), notes[1])
+end)
 
 T.test("neovim: a write by another process reaches the real watcher", function()
   local app, finish = live_app({ auto = true })

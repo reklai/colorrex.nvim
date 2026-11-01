@@ -2,8 +2,10 @@
 --
 --   idle --query--> querying --reply or timeout--> idle
 --
--- Everything outside the machine is injected (send, after), so the suite can
--- drive every ordering and failure with no terminal and no real clock.
+-- Closing it from any state ends it for good.
+--
+-- Everything outside the machine is injected (send, after), so the suite can drive
+-- every ordering and failure with no terminal and no real clock.
 local Protocol = require("color-rex.terminal.protocol")
 
 local M = {}
@@ -27,8 +29,8 @@ function M.new(opts)
     cancel_timer()
     phase = "idle"
     if rerun then
-      -- Something asked for fresher colors while this query was in flight, so
-      -- this answer is already out of date: replace it, do not publish it.
+      -- Something asked for fresher colors while this query was in flight, so this
+      -- answer is already out of date: replace it, do not publish it.
       rerun = false
       self.query()
       return
@@ -40,25 +42,21 @@ function M.new(opts)
   --- however many calls arrive: focus events come in pairs.
   function self.query()
     if phase == "closed" then
-      return false
+      return
     end
     if phase == "querying" then
       rerun = true
-      return false
+      return
     end
-    phase, rerun = "querying", false
+    phase = "querying"
     cancel = opts.after(M.TIMEOUT_MS, function()
       cancel = nil
-      if phase == "querying" then
-        settle({ ansi = {} }, "timeout")
-      end
+      settle({ ansi = {} }, "timeout")
     end)
-    local ok, err = pcall(opts.send, Protocol.request())
+    local ok, err = pcall(opts.send, Protocol.REQUEST)
     if not ok then
       settle({ ansi = {} }, "send failed: " .. tostring(err))
-      return false
     end
-    return true
   end
 
   --- Feed one terminal reply. Anything unrecognized is ignored.
@@ -67,16 +65,14 @@ function M.new(opts)
     if not event or phase == "closed" then
       return
     end
-    if event.kind == "theme" then
+    if event.kind == "changed" then
+      opts.on_change() -- cannot loop: a query never causes one of these
+    elseif phase == "querying" then
+      settle(event.theme, "reply")
+    else
       -- Nothing else sends these, so one that arrives after the timeout is still
       -- the terminal's answer. On a slow link it is the only answer there is.
-      if phase == "querying" then
-        settle(event.theme, "reply")
-      else
-        opts.on_settle(event.theme, "late reply")
-      end
-    else
-      opts.on_change() -- cannot loop: a query never causes one of these
+      opts.on_settle(event.theme, "late reply")
     end
   end
 

@@ -1,28 +1,19 @@
--- Color math. Pure Lua: no Neovim, no state, no allocation beyond strings.
+-- Color math. Pure Lua: no Neovim, no state. Colors are "#rrggbb" strings.
 --
 -- OKLab is the working space because it is perceptually even: a distance means
 -- roughly the same thing at every hue, and moving lightness keeps hue steady.
 -- Contrast uses the WCAG formula, because that is the number people check.
 local M = {}
 
+M.HUE_MIN_CHROMA = 0.05 -- below this a color's hue is mostly rounding noise
+M.DISTINCT = 0.04 -- below this OKLab distance two tokens read as one color
+
 local function clamp(v, lo, hi)
   return v < lo and lo or (v > hi and hi or v)
 end
 
---- Parse "#rrggbb" (or "rrggbb") into 0-255 integers, or nil.
-function M.parse(hex)
-  if type(hex) ~= "string" then
-    return nil
-  end
-  local r, g, b = hex:match("^#?(%x%x)(%x%x)(%x%x)$")
-  if not r then
-    return nil
-  end
-  return tonumber(r, 16), tonumber(g, 16), tonumber(b, 16)
-end
-
-function M.format(r, g, b)
-  return string.format("#%02x%02x%02x", r, g, b)
+local function channels(hex)
+  return tonumber(hex:sub(2, 3), 16), tonumber(hex:sub(4, 5), 16), tonumber(hex:sub(6, 7), 16)
 end
 
 local function to_linear(channel)
@@ -45,7 +36,7 @@ end
 
 --- OKLab coordinates of a hex color.
 function M.oklab(hex)
-  local r8, g8, b8 = M.parse(hex)
+  local r8, g8, b8 = channels(hex)
   local r, g, b = to_linear(r8), to_linear(g8), to_linear(b8)
   local l = cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
   local m = cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
@@ -86,11 +77,10 @@ function M.from_oklab(L, a, b)
     end
     r, g, bl = oklab_to_linear(L, a * lo, b * lo)
   end
-  return M.format(from_linear(r), from_linear(g), from_linear(bl))
+  return ("#%02x%02x%02x"):format(from_linear(r), from_linear(g), from_linear(bl))
 end
 
---- Perceptual distance between two colors. 0 is identical; about 0.04 is where
---- two code tokens stop reading as different colors at a glance.
+--- Perceptual distance between two colors. 0 is identical.
 function M.distance(x, y)
   local L1, a1, b1 = M.oklab(x)
   local L2, a2, b2 = M.oklab(y)
@@ -111,7 +101,7 @@ end
 
 --- Smallest angle between two hues.
 function M.hue_gap(x, y)
-  local gap = math.abs(M.hue(x) - M.hue(y)) % 360
+  local gap = math.abs(M.hue(x) - M.hue(y))
   return gap > 180 and 360 - gap or gap
 end
 
@@ -123,7 +113,7 @@ function M.mix(from, to, t)
 end
 
 function M.luminance(hex)
-  local r, g, b = M.parse(hex)
+  local r, g, b = channels(hex)
   return 0.2126 * to_linear(r) + 0.7152 * to_linear(g) + 0.0722 * to_linear(b)
 end
 
@@ -139,7 +129,7 @@ end
 --- Same weights and threshold as Neovim's own 'background' detection, so the
 --- two can never disagree about whether a theme is dark.
 function M.is_dark(hex)
-  local r, g, b = M.parse(hex)
+  local r, g, b = channels(hex)
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5
 end
 

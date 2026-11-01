@@ -59,7 +59,7 @@ end
 function M.command(fargs, bang)
   local problem = Commands.run(get(), fargs, bang)
   if problem then
-    vim.notify("color-rex: " .. problem, vim.log.levels.ERROR)
+    get().host.notify(problem, "error")
   end
 end
 
