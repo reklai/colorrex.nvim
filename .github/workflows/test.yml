@@ -1,0 +1,23 @@
+# Everything except test/e2e, which needs a real Rex. v0.12.0 is the floor that
+# plugin/color-rex.lua asserts: a floor that is never run is a claim, not a test.
+name: test
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        neovim: [v0.12.0, stable, nightly]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.neovim }}
+      - run: sudo apt-get update && sudo apt-get install -y luajit
+      - run: make test

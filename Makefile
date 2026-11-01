@@ -1,0 +1,34 @@
+.PHONY: test unit conformance fault architecture integration e2e e2e-rex e2e-ghostty matrix docs verify
+
+# NVIM is the binary the Neovim lanes run under; LUAJIT runs the pure ones.
+NVIM ?= nvim
+LUAJIT ?= luajit
+
+# FILTER is a Lua pattern matched against test names.
+test: unit conformance fault architecture integration
+
+unit conformance fault architecture:
+	$(LUAJIT) test/run.lua $@ "$(FILTER)"
+
+integration:
+	$(NVIM) --headless --clean -l test/run.lua integration "$(FILTER)"
+
+# Real Neovim in real terminals. Not part of `test`, and NVIM is the binary under
+# test. e2e-rex runs from inside Rex; e2e-ghostty opens short-lived windows.
+e2e: e2e-rex e2e-ghostty
+
+e2e-rex:
+	$(NVIM) -l test/e2e/rex.lua
+
+e2e-ghostty:
+	$(NVIM) -l test/e2e/ghostty.lua
+
+# Every suite against several Neovims. VERSIONS are official releases, downloaded
+# and run from a cache; set NVIMS to test binaries you already have instead.
+matrix:
+	sh test/matrix.sh
+
+docs:
+	$(NVIM) --headless --clean -c "helptags doc" -c "qall!"
+
+verify: test e2e
