@@ -4,3 +4,6 @@ doc/tags
 # macOS, and anything a test or tool leaves behind.
 .DS_Store
 *.log
+
+# Dependencies CI fetches. Nothing in the plugin uses them.
+.deps/

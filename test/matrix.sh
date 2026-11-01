@@ -18,6 +18,9 @@ esac
 
 fetch() {
   dir=$CACHE/$1
+  case $1 in
+    stable | nightly) rm -rf "$dir" ;; # these move, so a cached copy goes stale
+  esac
   if [ ! -x "$dir/nvim-linux-$ARCH/bin/nvim" ]; then
     mkdir -p "$dir"
     curl -fsSL "https://github.com/neovim/neovim/releases/download/$1/nvim-linux-$ARCH.tar.gz" |
