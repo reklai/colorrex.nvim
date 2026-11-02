@@ -104,7 +104,8 @@ which also turns the colorscheme on:
 require("colorrex").setup({
   transparent = true, -- leave the background to the terminal
   contrast = 3.0,     -- minimum contrast for code, up to 4.5
-  force_unique = false, -- make nearly identical themes look different
+  force_unique = false, -- give each theme its own voice
+  chunks = false,     -- mark where each chunk of code starts
   auto = true,        -- also sync on focus and dark/light changes
 })
 ```
@@ -115,6 +116,12 @@ one of six arrangements modeled on themes people recognize. It is colorrex's own
 not what the theme's author meant, so a theme with a known look elsewhere loses it.
 Themes whose palettes and cursors nearly match stay alike. `:ColorRex status` names
 the voice, and `:ColorRex check` says why it was chosen.
+
+With `chunks = true`, the name at the start of each chunk stands out, so you can scan
+a file by its shape. It works in any language with Treesitter highlighting, because
+it reads position in the tree and not kinds of token: in tests a chunk starts at
+`describe(...)`, and in source at a function. `if` and `for` are left alone, and only
+the outer two levels count, which keeps these to about 6% of lines at most.
 
 ## How it works
 

@@ -73,6 +73,13 @@ force_unique    Give each theme its own voice. A cursor with a color of its
                 own elsewhere will lose it. When false, roles follow the ANSI
                 convention and move only to keep code readable.
 
+chunks          Mark where each chunk of code starts. The name on its first
+                line stands out, so a file can be scanned by its shape. A chunk
+                is any named thing of five lines or more in the outer two
+                levels, found from the Treesitter tree in any language. It
+                needs Treesitter highlighting in the buffer and looks only at
+                the lines on screen.
+
 auto            Also sync on focus and on dark or light changes, and when
                 another Neovim on this machine saves a new theme. When false,
                 colors change only through |:ColorRex|.

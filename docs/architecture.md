@@ -75,6 +75,8 @@ Use these words, in code and in prose.
 | arrangement | One assignment of colors to roles. |
 | casting | The arrangement a theme uses, by number. 1 is the ANSI convention. |
 | voice | One of six named arrangements. `force_unique` picks one by the cursor's hue. |
+| chunk | A node that starts its own line and runs five lines or more. |
+| landmark | The name that opens a chunk in the outer two levels. |
 | group spec | A highlight group written in roles. |
 | colorscheme | The compiler's output, everything needed to paint. |
 | query | One request to the terminal. `terminal.query()` starts one. |
@@ -152,6 +154,17 @@ strength on every theme. `DiffText` sets its own text for a different reason. No
 strength that still marks the changed words leaves a comment readable, and the
 words are short and meant to stand out, so giving up their syntax color is the better
 trade. Borders and separators are lines, not text, and are exempt.
+
+**Shape comes from position, not kinds of token.** A chunk can start at a definition or
+at a call, and which depends on the code: 37% of chunks in TypeScript source open with a
+named definition against 10% in tests, where 56% open with a call like `describe(...)`.
+So `chunks.lua` reads position in the tree, and asks only that a landmark has a name,
+using the field names grammars share, which drops `if` and `for` with no list of
+keywords. Limiting it to the outer two levels and five lines or more took landmarks from
+14-19% of lines to 2.5-5.6% across TypeScript, TSX, Lua and Python. Fewer is the point:
+color only says something when it is scarce. This cannot live in highlight groups,
+because a group cannot know a token's position, so the host draws ephemeral marks during
+redraw, on the rows on screen, from the tree Treesitter already parsed.
 
 **The saved theme doubles as a signal.** This idea is from `tinted-osc-colors.nvim`.
 One Neovim noticing a change is enough for all of them to check, and because the

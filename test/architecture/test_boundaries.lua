@@ -6,6 +6,7 @@ local T = require("harness")
 -- bottom-up: nothing requires anything listed after it.
 local GRAPH = {
   ["colorrex.color"] = {},
+  ["colorrex.chunks"] = {},
   ["colorrex.config"] = {},
   ["colorrex.commands"] = {},
   ["colorrex.terminal.protocol"] = {},
@@ -32,7 +33,8 @@ local GRAPH = {
   },
   ["colorrex.report"] = {},
   ["colorrex.app"] = {
-    "colorrex.compiler", "colorrex.config", "colorrex.report", "colorrex.terminal", "colorrex.theme",
+    "colorrex.chunks", "colorrex.compiler", "colorrex.config", "colorrex.report", "colorrex.terminal",
+    "colorrex.theme",
   },
   ["colorrex.neovim"] = { "colorrex.config" },
   ["colorrex.health"] = { "colorrex", "colorrex.config" },

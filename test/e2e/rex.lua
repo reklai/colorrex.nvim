@@ -200,6 +200,43 @@ local function suite()
   end
   wait(300)
 
+  -- Decorations only run during a real redraw, so only a terminal can show them.
+  local chunky = work .. "/chunky.lua"
+  local file = assert(io.open(chunky, "w"))
+  file:write("function long_name()\n  a()\n  b()\n  c()\n  d()\nend\n")
+  file:close()
+  local shape = nvim_tab("shape", "0.2")
+  wait(900)
+  theme(shape, "dracula")
+  send(shape, "\027:lua require('colorrex').setup({ chunks = true })\r")
+  wait(200)
+  send(shape, (":edit %s\r:lua vim.treesitter.start()\r"):format(chunky))
+  wait(500)
+  local function name_style()
+    local out = rex("do", "-s", session, "-b", shape.block, "com.superlogical.terminal.format",
+      "extra_style=true", "format=vt", "max_bytes=20000")
+    local content = vim.json.decode(out).content
+    local before = content:sub(1, assert(content:find("long_name", 1, true)) - 1)
+    local codes = {} -- a terminal can write one style as several sequences in a row
+    local sequence = before:match("(\027%[[%d;:]*m)$")
+    while sequence do
+      table.insert(codes, 1, sequence:sub(3, -2))
+      before = before:sub(1, -#sequence - 1)
+      sequence = before:match("(\027%[[%d;:]*m)$")
+    end
+    return table.concat(codes, ";")
+  end
+  local function bold(style)
+    return (";" .. style .. ";"):find(";1;", 1, true) ~= nil
+  end
+  local on = name_style()
+  check("chunks: a landmark is drawn in the terminal", bold(on), tostring(on))
+  send(shape, "\027:lua require('colorrex').setup({ chunks = false })\r")
+  wait(400)
+  local off = name_style()
+  check("chunks: and is gone when turned off", not bold(off), tostring(off))
+  send(shape, "\027:qa!\r")
+
   local fresh = vim.fn.tempname()
   vim.fn.mkdir(fresh, "p")
   local race = nvim_tab("race", "0", fresh)

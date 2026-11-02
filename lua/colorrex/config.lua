@@ -15,6 +15,9 @@ M.defaults = {
   -- roles follow one of six arrangements. Off: roles follow the ANSI convention, so a
   -- theme's colors decide how it reads, and themes with the same colors read the same.
   force_unique = false,
+  -- Mark where each chunk of code starts: the name on its first line stands out, so
+  -- a file can be scanned by its shape. Needs Treesitter highlighting in the buffer.
+  chunks = false,
   -- Also sync on focus and on dark/light notifications. These cost nothing
   -- while idle. Off: only :ColorRex changes colors after launch.
   auto = true,

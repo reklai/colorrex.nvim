@@ -5,6 +5,9 @@ local Config = require("colorrex.config")
 
 local M = {}
 
+local LANDMARK_GROUP = "ColorRexLandmark"
+local LANDMARK_PRIORITY = 130 -- above Treesitter and LSP tokens, below diagnostics
+
 function M.new()
   local host = {}
   local state_path = vim.fs.joinpath(vim.fn.stdpath("state"), Config.NAME, "theme")
@@ -120,6 +123,44 @@ function M.new()
       watcher:close()
       watcher = nil
     end
+  end
+
+  --- Draw landmarks on every window as it redraws. Marks are ephemeral, so nothing is
+  --- stored in a buffer, and only the rows on screen are looked at. A buffer without
+  --- Treesitter highlighting is left alone, and nothing here ever starts a parse.
+  function host.decorate(landmarks)
+    local namespace = vim.api.nvim_create_namespace(Config.NAME .. ".chunks")
+    local marks = {}
+    vim.api.nvim_set_decoration_provider(namespace, {
+      on_win = function(_, _, buffer, top, bottom)
+        local highlighter = vim.treesitter.highlighter.active[buffer]
+        local _, tree = next(highlighter and highlighter.tree:trees() or {})
+        if not tree then
+          return false
+        end
+        marks = landmarks(tree:root(), top, bottom, function(row)
+          return vim.api.nvim_buf_get_lines(buffer, row, row + 1, false)[1]
+        end)
+        return next(marks) ~= nil
+      end,
+      on_line = function(_, _, buffer, row)
+        local mark = marks[row]
+        if mark then
+          vim.api.nvim_buf_set_extmark(buffer, namespace, row, mark[1], {
+            end_row = mark[2],
+            end_col = mark[3],
+            hl_group = LANDMARK_GROUP,
+            priority = LANDMARK_PRIORITY,
+            ephemeral = true,
+            strict = false,
+          })
+        end
+      end,
+    })
+  end
+
+  function host.undecorate()
+    vim.api.nvim_set_decoration_provider(vim.api.nvim_create_namespace(Config.NAME .. ".chunks"), {})
   end
 
   function host.notify(message, level)

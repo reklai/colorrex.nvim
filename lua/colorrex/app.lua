@@ -4,6 +4,7 @@
 -- it does to the world goes through an injected host, and neovim.lua is the one real
 -- host. So all of this runs, and is tested, under plain LuaJIT with a fake one.
 -- Ghostty keeps its core and its apprt apart the same way.
+local Chunks = require("colorrex.chunks")
 local Compiler = require("colorrex.compiler")
 local Config = require("colorrex.config")
 local Report = require("colorrex.report")
@@ -129,6 +130,7 @@ function App:attach()
       self:detach()
     end,
   })
+  self:shape()
   if self.host.ui_ready() then
     self:sync("launch")
   elseif self.announce then
@@ -147,6 +149,16 @@ function App:detach()
   self.terminal.close()
   self.terminal = nil
   self.host.unsubscribe()
+  self.host.undecorate()
+end
+
+--- Draw chunk landmarks, or stop, to match the options.
+function App:shape()
+  if self.config.chunks then
+    self.host.decorate(Chunks.landmarks)
+  else
+    self.host.undecorate()
+  end
 end
 
 --- Say once that this terminal gave us nothing, so that grey never goes unexplained.
@@ -313,6 +325,9 @@ function App:configure(config)
   self.config = config
   if self.colorscheme then
     self.colorscheme = Compiler.compile(self.colorscheme.theme, config, self.host.background())
+  end
+  if self.terminal then
+    self:shape()
   end
 end
 

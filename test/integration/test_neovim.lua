@@ -310,6 +310,92 @@ T.test("neovim: :checkhealth runs clean", function()
   require("colorrex.health").check()
 end)
 
+local function landmarks_in(source, lang)
+  local Chunks = require("colorrex.chunks")
+  local lines = vim.split(source, "\n")
+  local tree = vim.treesitter.get_string_parser(source, lang):parse()[1]
+  local found = {}
+  for row, mark in pairs(Chunks.landmarks(tree:root(), 0, #lines, function(row)
+    return lines[row + 1]
+  end)) do
+    found[row + 1] = lines[row + 1]:sub(mark[1] + 1, mark[3])
+  end
+  return found
+end
+
+T.test("chunks: on a real parser, names mark the start of real chunks", function()
+  local found = landmarks_in(table.concat({
+    "local M = {}",                       -- 1: too short
+    "",
+    "function M.long(a, b)",              -- 3: a landmark, at its whole name
+    "  local first = a + b",              -- 4: the body's first line is not a name
+    "  if first then",                    -- 5: control flow is not a name
+    "    print(first)",
+    "    print(first)",
+    "    print(first)",
+    "    print(first)",
+    "  end",
+    "  return first",
+    "end",
+    "",
+    "local function short()",             -- 14: three lines, not a chunk
+    "  return 1",
+    "end",
+  }, "\n"), "lua")
+  T.eq(found[3], "M.long")
+  T.eq(found[4], nil)
+  T.eq(found[5], nil)
+  T.eq(found[14], nil)
+end)
+
+T.test("chunks: a call with a function in it is a landmark on a real parser", function()
+  local found = landmarks_in(table.concat({
+    "describe('the thing', function()",
+    "  local value = 1",
+    "  it('works', function()",
+    "    assert(value)",
+    "    assert(value)",
+    "    assert(value)",
+    "  end)",
+    "end)",
+  }, "\n"), "lua")
+  T.eq(found[1], "describe")
+  T.eq(found[3], "it")
+end)
+
+T.test("chunks: a decorated Python class keeps its methods", function()
+  if not vim.treesitter.language.add("python") then
+    T.skip("Neovim does not bundle a Python parser")
+  end
+  local found = landmarks_in(table.concat({
+    "@dataclass",
+    "class Camera:",
+    "    name: str = 'front'",
+    "",
+    "    def area(self):",
+    "        width = 1",
+    "        height = 2",
+    "        depth = 3",
+    "        return width * height * depth",
+  }, "\n"), "python")
+  T.eq(found[1], nil)
+  T.eq(found[2], "Camera")
+  T.eq(found[5], "area")
+end)
+
+T.test("chunks: drawing and stopping on the real host raises nothing", function()
+  local host = require("colorrex.neovim").new()
+  local buffer = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buffer, 0, -1, false, { "function a()", "  b()", "  b()", "  b()", "end" })
+  vim.bo[buffer].filetype = "lua"
+  vim.treesitter.start(buffer, "lua")
+  vim.api.nvim_set_current_buf(buffer)
+  host.decorate(require("colorrex.chunks").landmarks)
+  vim.cmd.redraw({ bang = true })
+  host.undecorate()
+  vim.cmd.redraw({ bang = true })
+end)
+
 T.test("neovim: the colorscheme loads in well under a frame", function()
   local start = vim.uv.hrtime()
   for _ = 1, 20 do

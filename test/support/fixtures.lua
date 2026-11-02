@@ -55,6 +55,8 @@ function F.fake_host(overrides)
   end
   function host.subscribe(handlers) host.handlers = handlers end
   function host.unsubscribe() host.handlers = nil end
+  function host.decorate(find) host.decorating = find end
+  function host.undecorate() host.decorating = nil end
   function host.notify(message, level) host.messages[#host.messages + 1] = { message = message, level = level } end
   function host.saved_theme() return host.saved end
   function host.save_theme(text) host.saved = text end
