@@ -248,6 +248,45 @@ T.test("voice: the status names it", function()
   T.ok(Report.status(status):find("abc123, casting 1", 1, true))
 end)
 
+T.test("landmark: takes the theme's cursor color", function()
+  local ansi = F.theme().ansi
+  for _, cursor in ipairs({ ansi[2], ansi[3], ansi[4], ansi[5], ansi[6] }) do
+    local compiled = Compiler.compile(F.theme({ cursor = cursor }), Config.resolve())
+    T.eq(compiled.roles.landmark.hex, cursor)
+    T.eq(compiled.groups.ColorRexLandmark.fg, cursor)
+    T.eq(compiled.groups.ColorRexLandmark.bold, true)
+  end
+end)
+
+T.test("landmark: leaves red to errors", function()
+  local compiled = Compiler.compile(F.theme({ cursor = F.theme().ansi[1] }), Config.resolve())
+  T.eq(compiled.roles.landmark.hex, compiled.roles.func.hex)
+  T.eq(compiled.roles.landmark.source, "function")
+end)
+
+T.test("landmark: a cursor that is not a color of its own leaves it to functions", function()
+  local theme = F.theme()
+  -- The last is a color, but too faint to have a hue worth trusting, and sits nearest blue.
+  for _, overrides in ipairs({ { cursor = theme.fg }, { cursor = "#808080" }, { cursor = false }, { cursor = "#76889f" } }) do
+    local compiled = Compiler.compile(F.theme(overrides), Config.resolve())
+    T.eq(compiled.roles.landmark.hex, compiled.roles.func.hex)
+  end
+end)
+
+T.test("landmark: stays readable when the cursor is too faint on the background", function()
+  local Color = require("colorrex.color")
+  local opts = Config.resolve()
+  local compiled = Compiler.compile(F.theme({ cursor = "#22304a", bg = "#10141c" }), opts)
+  T.ok(Color.contrast(compiled.roles.landmark.hex, compiled.filled.bg) >= opts.contrast - 0.01)
+end)
+
+T.test("landmark: follows functions in every voice that leaves it to them", function()
+  local ansi = F.theme().ansi
+  local compiled = Compiler.compile(F.theme({ cursor = ansi[1] }), Config.resolve({ force_unique = true }))
+  T.eq(compiled.voice, "red")
+  T.eq(compiled.roles.landmark.hex, compiled.roles.func.hex)
+end)
+
 T.test("roles: red reaches code, as constants", function()
   local groups = Compiler.compile(F.theme(), Config.resolve()).groups
   T.eq(groups.Constant.fg, groups["@constant"].fg)

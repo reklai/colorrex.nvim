@@ -72,6 +72,7 @@ function M.check(colorscheme, opts)
     readable(role.name)
   end
   readable("accent")
+  readable("landmark")
 
   local fg_contrast = Color.contrast(fg, bg)
   local comment_contrast = Color.contrast(roles.comment.hex, bg)

@@ -78,7 +78,9 @@ chunks          Mark where each chunk of code starts. The name on its first
                 is any named thing of five lines or more in the outer two
                 levels, found from the Treesitter tree in any language. It
                 needs Treesitter highlighting in the buffer and looks only at
-                the lines on screen.
+                the lines on screen. These names take the cursor color, or the
+                function color if the cursor is nearest red or has no color of
+                its own.
 
 auto            Also sync on focus and on dark or light changes, and when
                 another Neovim on this machine saves a new theme. When false,

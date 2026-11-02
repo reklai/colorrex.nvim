@@ -121,7 +121,9 @@ With `chunks = true`, the name at the start of each chunk stands out, so you can
 a file by its shape. It works in any language with Treesitter highlighting, because
 it reads position in the tree and not kinds of token: in tests a chunk starts at
 `describe(...)`, and in source at a function. `if` and `for` are left alone, and only
-the outer two levels count, which keeps these to about 6% of lines at most.
+the outer two levels count, which keeps these to about 5% of lines. They take your
+cursor color, so a theme's one signature color marks the shape of the code. A cursor
+nearest red gives way to the function color, because red is left to errors.
 
 ## How it works
 

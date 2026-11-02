@@ -172,6 +172,16 @@ T.test("number: past yellow and a taken constant, goes to bright red", function(
   T.ok(compiled.roles.constant.hex ~= compiled.roles.number.hex)
 end)
 
+T.test("promises: a landmark too faint to read is caught", function()
+  local compiled = Compiler.compile(F.theme(), OPTS)
+  compiled.roles.landmark.hex = compiled.filled.bg
+  local caught
+  for _, failure in ipairs(Compiler.check(compiled, OPTS)) do
+    caught = caught or failure.message:find("landmark", 1, true)
+  end
+  T.ok(caught)
+end)
+
 T.test("warn: wears bright yellow, the only role left to show it", function()
   local theme = F.theme()
   T.eq(Compiler.compile(theme, OPTS).roles.warn.slot, 11)

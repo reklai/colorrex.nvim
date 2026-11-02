@@ -429,6 +429,18 @@ local function accent_role(theme, roles, floor, notes)
   return chromatic(theme, 13) and from_slot(theme, 13, floor) or roles.func
 end
 
+--- The color marking where chunks start. The cursor shows where you are, so it shows
+--- where things are too. Red is left to errors, and a theme with no cursor color of its
+--- own has functions, which already mark most of what a landmark does.
+local function landmark_role(theme, roles)
+  local voice = roles.accent.source == "cursor" and Color.chroma(theme.cursor) >= Color.HUE_MIN_CHROMA
+    and Casting.voice(theme.cursor, theme.ansi)
+  if voice and voice.name ~= "red" then
+    return { hex = roles.accent.hex, source = "cursor" }
+  end
+  return { hex = roles.func.hex, source = "function" }
+end
+
 --- Solve a filled theme.
 ---   roles[name] = { hex, source, from? }; styles[syntax role] = { bold?, ... }
 function M.solve(theme, opts)
@@ -470,6 +482,7 @@ function M.solve(theme, opts)
   roles.comment = comment_role(theme, notes)
   roles.accent = accent_role(theme, roles, floor, notes)
   note_lift(notes, "accent", roles.accent, bg)
+  roles.landmark = landmark_role(theme, roles)
 
   for _, role in ipairs(M.PALETTE) do
     roles[role.name] = from_slot(theme, natural_slot(theme, role.slots), floor)

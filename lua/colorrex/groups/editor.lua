@@ -36,7 +36,7 @@ return function(define)
   G.Whitespace = { fg = "border" }
   G.WinSeparator = { fg = "border", bg = base }
   G.MatchParen = { fg = "accent", bold = true }
-  G.ColorRexLandmark = { bold = true }
+  G.ColorRexLandmark = { fg = "landmark", bold = true }
   G.Title = { fg = "accent", bold = true }
   G.Visual = { bg = "visual" }
   G.VisualNOS = { bg = "visual" }
