@@ -42,7 +42,7 @@ function M.explain(colorscheme, candidates)
     name = name or defined(specs, candidate)
   end
   if not name then
-    return ("%s is not a group color-rex defines"):format(candidates[1]), "warn"
+    return ("%s is not a group colorrex defines"):format(candidates[1]), "warn"
   end
   local lines = {}
   while specs[name].link do

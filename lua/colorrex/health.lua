@@ -1,5 +1,5 @@
--- :checkhealth color-rex
-local Config = require("color-rex.config")
+-- :checkhealth colorrex
+local Config = require("colorrex.config")
 
 local M = {}
 
@@ -24,7 +24,7 @@ function M.check()
   -- An answer to OSC 21 is the proof. TERM_PROGRAM only supports the diagnosis:
   -- over SSH it is forwarded only if the server's AcceptEnv allows it, so its
   -- absence says nothing about a terminal that has already answered.
-  local status = require("color-rex").status()
+  local status = require("colorrex").status()
   if status.source == "terminal" and status.completeness == "full" then
     health.ok("the terminal answered with a complete theme")
   elseif status.source == "cache" then
@@ -33,7 +33,7 @@ function M.check()
     health.warn(("theme is %s from %s"):format(status.completeness, status.source), "Run :ColorRex")
     local terminal = vim.env.TERM_PROGRAM
     if terminal ~= "rex" and terminal ~= "ghostty" then
-      health.info(("TERM_PROGRAM is %s; color-rex supports libghostty terminals, such as Ghostty and Rex"):format(
+      health.info(("TERM_PROGRAM is %s; colorrex supports libghostty terminals, such as Ghostty and Rex"):format(
         tostring(terminal)))
     end
   end

@@ -5,12 +5,12 @@
 -- It is a pure function of (theme, options): no clock, no randomness, no state.
 -- The same input always produces identical output, and a compile takes a small
 -- fraction of a millisecond, so nothing downstream caches compiled groups.
-local Groups = require("color-rex.groups")
-local Lualine = require("color-rex.lualine")
-local Promises = require("color-rex.compiler.promises")
-local Roles = require("color-rex.roles")
-local Standalone = require("color-rex.compiler.standalone")
-local Theme = require("color-rex.theme")
+local Groups = require("colorrex.groups")
+local Lualine = require("colorrex.lualine")
+local Promises = require("colorrex.compiler.promises")
+local Roles = require("colorrex.roles")
+local Standalone = require("colorrex.compiler.standalone")
+local Theme = require("colorrex.theme")
 
 local M = {}
 

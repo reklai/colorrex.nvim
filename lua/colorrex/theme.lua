@@ -8,7 +8,7 @@
 -- Themes are read and written as Ghostty theme files. That is the format Rex
 -- imports, the corpus the conformance suite runs on, and the cache on disk, which
 -- is why the cache is plain text and never executed.
-local Color = require("color-rex.color")
+local Color = require("colorrex.color")
 
 local M = {}
 

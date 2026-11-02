@@ -6,7 +6,7 @@
 --
 -- Everything outside the machine is injected (send, after), so the suite can drive
 -- every ordering and failure with no terminal and no real clock.
-local Protocol = require("color-rex.terminal.protocol")
+local Protocol = require("colorrex.terminal.protocol")
 
 local M = {}
 

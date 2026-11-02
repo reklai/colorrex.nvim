@@ -6,14 +6,18 @@
 --   1. fg and bg are the theme's and are never altered.
 --   2. Every syntax color comes from an ANSI slot. Nothing is invented.
 --   3. A color too faint to read moves in lightness only, the minimum needed.
---   4. Two roles that would look the same take another of the theme's colors.
---   5. The theme's casting decides which of these colors plays which role.
+--   4. Two roles that would look the same: the lesser one moves along its own slots,
+--      else to the nearest color that stands apart. A repair changes all it must and
+--      nothing else.
+--   5. Colors stay on their ANSI convention unless that would hurt readability.
 --   6. Roles the palette cannot separate differ by weight or slant instead.
+--   7. A surface that text sits on gives way until the text is readable, and stops
+--      while it can still be seen. Text in a float is lifted against the float.
 --
 -- Every step that changes something leaves a note and records where the color came
 -- from, so `:ColorRex explain` can show why any color on screen is what it is.
-local Casting = require("color-rex.roles.casting")
-local Color = require("color-rex.color")
+local Casting = require("colorrex.roles.casting")
+local Color = require("colorrex.color")
 
 local M = {}
 
@@ -23,14 +27,17 @@ M.MIN_CHROMA = 0.03 -- below this a slot is a grey, however it is named
 
 local COMMENT_FLOOR = 2.5 -- comments may recede further than code, but stay legible
 
--- Each syntax role's natural slots, preferred first. The bright partner is the
--- one kept in reserve; `number` prefers bright so it separates from `type`.
+-- Each syntax role's slots, most natural first. The bright partner is the one kept
+-- in reserve; `number` holds bright yellow only until the roles above it are settled,
+-- when it takes the constant's color if it can. This order is also precedence: a
+-- collision moves the later role, because a theme is recognized by its keywords,
+-- functions, strings and types far more than by its numbers and operators.
 M.SYNTAX = {
   { name = "keyword", slots = { 5, 13 } },
   { name = "func", slots = { 4, 12 } },
   { name = "string", slots = { 2, 10 } },
   { name = "type", slots = { 3, 11 } },
-  { name = "number", slots = { 11, 3 } },
+  { name = "number", slots = { 11, 3, 9, 1 } },
   { name = "operator", slots = { 6, 14 } },
 }
 
@@ -40,37 +47,56 @@ M.SECONDARY = {
   { name = "special", slots = { 9, 1 } },
 }
 
+local CONSTANT_SLOTS = { 1, 9 }
+
 -- Roles that keep their slot whatever the casting. With the two lists above these
 -- put all twelve chromatic slots on screen, so a change to any of them shows.
 M.PALETTE = {
   { name = "error", slots = { 1, 9 } },
-  { name = "warn", slots = { 3, 11 } },
+  { name = "warn", slots = { 11, 3 } },
   { name = "ok", slots = { 10, 2 } },
   { name = "info", slots = { 14, 6 } },
   { name = "hint", slots = { 12, 4 } },
-  { name = "constant", slots = { 1, 9 } },
+  { name = "constant", slots = CONSTANT_SLOTS },
 }
 
 -- Colors for surfaces: `over` mixed into the background. These are editor chrome,
--- which no terminal theme defines, so they derive from what it does define.
+-- which no terminal theme defines, so they derive from what it does define. A surface
+-- with `least` lies under whatever syntax happens to be there, so it cannot choose its
+-- text. It eases off instead, keeping at least that much contrast with the background,
+-- because a selection you cannot see is worse than one that is hard to read through.
 local SURFACES = {
-  { name = "cursorline", over = "fg", mix = 0.05 },
+  { name = "cursorline", over = "fg", mix = 0.05, least = 1.04 },
   { name = "element", over = "fg", mix = 0.08 },
   { name = "statusline", over = "fg", mix = 0.10 },
   { name = "subtle", over = "fg", mix = 0.14 },
-  { name = "visual", over = "fg", mix = 0.18 },
+  { name = "visual", over = "fg", mix = 0.18, least = 1.2 },
   { name = "border", over = "fg", mix = 0.24 },
   { name = "border_strong", over = "fg", mix = 0.40 },
   { name = "search", over = "warn", mix = 0.28 },
-  { name = "diff_add", over = "ok", mix = 0.16 },
+  { name = "diff_add", over = "ok", mix = 0.16, least = 1.1 },
   { name = "diff_delete", over = "error", mix = 0.16 },
-  { name = "diff_change", over = "warn", mix = 0.14 },
+  { name = "diff_change", over = "warn", mix = 0.14, least = 1.1 },
   { name = "diff_text", over = "warn", mix = 0.30 },
   { name = "accent_soft", over = "accent", mix = 0.18 },
 }
 
+-- How readable text must stay on those surfaces. Lower than `contrast`, which is
+-- measured against the background: a surface cannot help costing some, and this is
+-- what is left once a selection is only just visible. Comments may recede further, as
+-- they do everywhere.
+M.ON_SURFACE = { text = 2.5, comment = 2.25 }
+
+local EASE_STEP = 0.01
+
+local MUTED_ON = { "cursorline", "element" } -- the surfaces quiet text is used on
+
+-- Roles used as text on a float, which sits on `element` and not on the background
+-- they were made readable against. Each gets a `float_` role, lifted to suit.
+local ON_FLOAT = { "accent", "error", "warn", "info", "hint", "ok" }
+
 -- Roles used as a fill, which get an `on_` role for the text on top of them.
-local FILLS = { "accent", "error", "warn", "ok", "keyword" }
+local FILLS = { "accent", "error", "warn", "ok", "keyword", "search", "diff_text" }
 
 local POOL = { 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14 } -- the chromatic slots
 
@@ -124,7 +150,7 @@ local function note_lift(notes, name, role, bg)
   if role.from then
     notes[#notes + 1] = {
       code = "faithful.lifted",
-      message = ("%s lifted from %s (%.1f:1) to %s (%.1f:1)"):format(
+      message = ("%s lifted from %s (%.2f:1) to %s (%.2f:1)"):format(
         name, role.from, Color.contrast(role.from, bg), role.hex, Color.contrast(role.hex, bg)),
     }
   end
@@ -156,6 +182,63 @@ local function nearest_other(picks, name, hex)
   return gap
 end
 
+--- What `name` would move to: the first of its own slots that stands apart from every
+--- other role, else the nearest color that does. Its own slots come first because
+--- distance only sees lightness and hue together: left to itself it takes bright blue
+--- over a bright cyan, or a green right beside the strings.
+local function alternative(picks, pool, name)
+  local apart = {}
+  for _, option in ipairs(pool) do
+    if nearest_other(picks, name, option.hex) >= Color.DISTINCT then
+      apart[option.slot] = option
+    end
+  end
+  for _, role in ipairs(M.SYNTAX) do
+    if role.name == name then
+      for _, slot in ipairs(role.slots) do
+        if apart[slot] then
+          return apart[slot]
+        end
+      end
+    end
+  end
+  local best, nearest = nil, math.huge
+  for _, option in ipairs(pool) do
+    local move = Color.distance(picks[name].hex, option.hex)
+    if apart[option.slot] and move < nearest then
+      best, nearest = option, move
+    end
+  end
+  return best
+end
+
+--- The smallest change that separates two roles. The later one moves if it can. The
+--- farthest color would separate them just as well, and turn operators red in a theme
+--- with a perfectly good bright cyan.
+local function smallest_repair(picks, pool, first, second)
+  for _, name in ipairs({ second, first }) do
+    local option = alternative(picks, pool, name)
+    if option then
+      return option, name
+    end
+  end
+end
+
+--- For a palette too small to separate everything: whichever move opens the widest
+--- gap, as long as it opens one at all.
+local function widest_repair(picks, pool, first, second, gap)
+  local best, best_name, best_gap = nil, nil, gap
+  for _, name in ipairs({ second, first }) do
+    for _, option in ipairs(pool) do
+      local reach = nearest_other(picks, name, option.hex)
+      if reach > best_gap + 1e-6 then
+        best, best_name, best_gap = option, name, reach
+      end
+    end
+  end
+  return best, best_name
+end
+
 --- The theme's color for each syntax role, on its natural slot unless that makes
 --- two roles look the same.
 local function pick_syntax(theme, floor, notes)
@@ -179,14 +262,9 @@ local function pick_syntax(theme, floor, notes)
     if gap >= Color.DISTINCT then
       break
     end
-    local best, best_name, best_gap = nil, nil, gap
-    for _, name in ipairs({ second, first }) do
-      for _, option in ipairs(pool) do
-        local reach = nearest_other(picks, name, option.hex)
-        if reach > best_gap + 1e-6 then
-          best, best_name, best_gap = option, name, reach
-        end
-      end
+    local best, best_name = smallest_repair(picks, pool, first, second)
+    if not best then
+      best, best_name = widest_repair(picks, pool, first, second, gap)
     end
     if not best then
       break
@@ -198,6 +276,18 @@ local function pick_syntax(theme, floor, notes)
     picks[best_name] = best
   end
   return picks
+end
+
+--- Numbers are constants, and authored colorschemes paint them alike. Left on bright
+--- yellow they sit beside `type` in one hue, which reads as one color however far apart
+--- two lightnesses measure. This follows every repair so it can never cost another role
+--- its color: a palette too small for that keeps `number` where those left it. It comes
+--- before casting, which only moves colors, so a recast theme has the same ones to move.
+local function number_as_constant(theme, picks, floor)
+  local constant = from_slot(theme, natural_slot(theme, CONSTANT_SLOTS), floor)
+  if nearest_other(picks, "number", constant.hex) >= Color.DISTINCT then
+    picks.number = constant
+  end
 end
 
 --- Give syntax roles the palette could not separate a different weight or slant.
@@ -228,6 +318,45 @@ local function assign_styles(picks, notes)
     end
   end
   return styles
+end
+
+--- The text that can land on a surface, and how readable each must stay. `fg` and the
+--- syntax roles are all held to one target, unless the theme itself never reached it.
+function M.surface_text(roles, bg)
+  local text = {}
+  local function add(name, target)
+    text[#text + 1] = { name = name, hex = roles[name].hex, floor = math.min(target, Color.contrast(roles[name].hex, bg)) }
+  end
+  add("fg", M.ON_SURFACE.text)
+  for _, role in ipairs(M.SYNTAX) do
+    add(role.name, M.ON_SURFACE.text)
+  end
+  add("comment", M.ON_SURFACE.comment)
+  return text
+end
+
+--- The first text that is too faint on `hex`, if any.
+function M.unreadable_on(text, hex)
+  for _, item in ipairs(text) do
+    if Color.contrast(item.hex, hex) < item.floor then
+      return item
+    end
+  end
+  return nil
+end
+
+--- Whether a surface could ease off once more and still be seen.
+function M.can_ease(bg, over, mix, least)
+  return mix - EASE_STEP > 0 and Color.contrast(Color.mix(bg, over, mix - EASE_STEP), bg) >= least
+end
+
+--- As much of `surface` as the text on it allows. Returns the mix it settled on.
+local function eased_mix(surface, over, bg, text)
+  local mix = surface.mix
+  while M.unreadable_on(text, Color.mix(bg, over, mix)) and M.can_ease(bg, over, mix, surface.least) do
+    mix = mix - EASE_STEP
+  end
+  return mix
 end
 
 --- The comment color: the theme's bright black when it behaves like one.
@@ -279,7 +408,14 @@ function M.solve(theme, opts, fingerprint)
   for _, role in ipairs(M.SECONDARY) do
     roles[role.name] = from_slot(theme, natural_slot(theme, role.slots), floor)
   end
-  local casting = Casting.cast(roles, roles.string.hex, opts.identity and fingerprint or nil)
+  number_as_constant(theme, roles, floor)
+  local casting = Casting.cast(roles, roles.string.hex, opts.force_unique and fingerprint or nil)
+  if casting ~= Casting.CONVENTION and not opts.force_unique then
+    notes[#notes + 1] = {
+      code = "faithful.recast",
+      message = "roles moved off the ANSI convention, which would have read as one color",
+    }
+  end
   local styles = assign_styles(roles, notes)
   for _, name in ipairs(Casting.ROLES) do
     note_lift(notes, name, roles[name], bg)
@@ -297,17 +433,51 @@ function M.solve(theme, opts, fingerprint)
     note_lift(notes, role.name, roles[role.name], bg)
   end
 
+  local surface_text = M.surface_text(roles, bg)
   for _, surface in ipairs(SURFACES) do
+    local over = roles[surface.over].hex
+    local mix = surface.least and eased_mix(surface, over, bg, surface_text) or surface.mix
     roles[surface.name] = {
-      hex = Color.mix(bg, roles[surface.over].hex, surface.mix),
-      source = ("%s over bg at %d%%"):format(surface.over, math.floor(surface.mix * 100 + 0.5)),
+      hex = Color.mix(bg, over, mix),
+      source = ("%s over bg at %d%%"):format(surface.over, math.floor(mix * 100 + 0.5)),
+      over = over,
+      mix = mix,
+      least = surface.least,
     }
+    if mix ~= surface.mix then
+      notes[#notes + 1] = {
+        code = "faithful.surface",
+        message = ("%s eased from %d%% to %d%% so the text on it stays readable"):format(
+          surface.name, math.floor(surface.mix * 100 + 0.5), math.floor(mix * 100 + 0.5)),
+      }
+    end
   end
 
-  roles.muted = {
-    hex = Color.lift(Color.mix(bg, fg, 0.72), bg, math.min(floor, Color.contrast(fg, bg))),
-    source = "fg over bg at 72%",
-  }
+  local function lifted_onto(name, surface, description)
+    local hex = Color.lift(roles[name].hex, roles[surface].hex, floor)
+    return { hex = hex, source = description, from = hex ~= roles[name].hex and roles[name].hex or nil }
+  end
+  for _, name in ipairs(ON_FLOAT) do
+    roles["float_" .. name] = lifted_onto(name, "element", name .. " on a float")
+  end
+  roles.diff_deleted = lifted_onto("error", "diff_delete", "error on a deleted line")
+
+  -- Lifted against both surfaces it is used on. On a mid-tone background they can sit
+  -- either side of the point where lifting changes direction, so one lift undoes the
+  -- other, and then only fg reads on both.
+  local muted = Color.mix(bg, fg, 0.72)
+  local function muted_floor(surface)
+    return math.min(floor, Color.contrast(fg, roles[surface].hex))
+  end
+  for _, surface in ipairs(MUTED_ON) do
+    muted = Color.lift(muted, roles[surface].hex, muted_floor(surface))
+  end
+  for _, surface in ipairs(MUTED_ON) do
+    if Color.contrast(muted, roles[surface].hex) < muted_floor(surface) then
+      muted = fg
+    end
+  end
+  roles.muted = { hex = muted, source = muted == fg and "fg" or "fg over bg at 72%" }
 
   for _, name in ipairs(FILLS) do
     local fill = roles[name].hex

@@ -1,19 +1,19 @@
-*color-rex.txt*  Compile your terminal's theme into a native colorscheme
+*colorrex.txt*  Compile your terminal's theme into a native colorscheme
 
-INTRODUCTION                                                       *color-rex*
+INTRODUCTION                                                        *colorrex*
 
-color-rex reads the colors your terminal reports and compiles them into a
+colorrex reads the colors your terminal reports and compiles them into a
 native Neovim colorscheme. It has no dependencies and needs no configuration.
 >lua
-    vim.cmd.colorscheme("color-rex")
+    vim.cmd.colorscheme("colorrex")
 <
-With lazy.nvim, installing it is enough: `{ "reklai/color-rex.lua" }`
+With lazy.nvim, installing it is enough: `{ "reklai/colorrex.nvim" }`
 
 Requires Neovim 0.12 or newer and a libghostty terminal, such as Ghostty or
-Rex. Other terminals are not supported: color-rex stays grey there, and says
+Rex. Other terminals are not supported: colorrex stays grey there, and says
 so once at startup.
 
-COMMANDS                                                         *:ColorRex*
+COMMANDS                                                           *:ColorRex*
 
 :ColorRex               Read the terminal's theme and repaint if it changed.
                         Run this after changing to a theme of the same
@@ -32,29 +32,29 @@ COMMANDS                                                         *:ColorRex*
 :ColorRex[!] compile [name]
                         Write the current theme to colors/{name}.lua in your
                         config, as a standalone colorscheme that needs no
-                        plugin. {name} defaults to "color-rex-static". Use ! to
+                        plugin. {name} defaults to "colorrex-static". Use ! to
                         replace an existing file.
 
-MAPPINGS                                                  *color-rex-mappings*
+MAPPINGS                                                   *colorrex-mappings*
 
 Nothing is mapped by default. Each of these runs the same code as the command:
 
-    <Plug>(color-rex)
-    <Plug>(color-rex-status)
-    <Plug>(color-rex-explain)
-    <Plug>(color-rex-check)
+    <Plug>(colorrex)
+    <Plug>(colorrex-status)
+    <Plug>(colorrex-explain)
+    <Plug>(colorrex-check)
 >lua
-    vim.keymap.set("n", "<leader>ts", "<Plug>(color-rex)")
+    vim.keymap.set("n", "<leader>ts", "<Plug>(colorrex)")
 <
-OPTIONS                                                    *color-rex-options*
+OPTIONS                                                     *colorrex-options*
 
 All optional. Pass them as `opts` in a lazy.nvim spec, or call `setup()`, which
 also turns the colorscheme on.
 >lua
-    require("color-rex").setup({
+    require("colorrex").setup({
       transparent = true,
       contrast = 3.0,
-      identity = true,
+      force_unique = false,
       auto = true,
     })
 <
@@ -62,19 +62,21 @@ transparent     Leave the background to the terminal, so its exact color and
                 any opacity show through.
 
 contrast        Minimum contrast for code against the background, from 1 to
-                4.5. Colors below it move in lightness only.
+                4.5. Colors below it move in lightness only. Text that a group
+                paints on its own fill, such as in a float, meets it too.
 
-identity        Give every theme its own casting: which of its colors plays
-                keywords, functions, types, numbers and the rest. No color
-                changes. When false, every theme uses the same fixed mapping,
-                so nearly identical themes look like the same colorscheme.
+force_unique    Make nearly identical themes look different, by letting a
+                fingerprint choose which color plays each role. No color
+                changes, but a change too small to see can recast a theme, and
+                themes meant as a set come apart. When false, roles follow the
+                ANSI convention and move only to keep code readable.
 
 auto            Also sync on focus and on dark or light changes, and when
                 another Neovim on this machine saves a new theme. When false,
                 colors change only through |:ColorRex|.
 
-LUALINE                                                    *color-rex-lualine*
+LUALINE                                                     *colorrex-lualine*
 
-Set `theme = "color-rex"`. It follows every sync, and lualine is not a dependency.
+Set `theme = "colorrex"`. It follows every sync, and lualine is not a dependency.
 
  vim:tw=78:ts=8:ft=help:norl:

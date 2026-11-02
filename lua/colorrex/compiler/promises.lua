@@ -6,13 +6,16 @@
 --
 -- DYNAMIC is the third promise and is about time, not one colorscheme, so it lives
 -- in test/e2e. This file judges the other two.
-local Color = require("color-rex.color")
-local Roles = require("color-rex.roles")
+local Color = require("colorrex.color")
+local Roles = require("colorrex.roles")
 
 local M = {}
 
 local HUE_TOLERANCE = 12 -- degrees a lifted color may drift from its source
 local ROUNDING = 0.01 -- bisection lands on 8-bit colors, a hair under an exact target
+
+-- Lines, not text. They are meant to recede, and nobody reads them.
+local DECORATION, DECORATION_ALT = "Border$", "Separator$"
 
 --- Judge one compiled colorscheme. Returns a list of failures; empty means kept.
 function M.check(colorscheme, opts)
@@ -79,6 +82,37 @@ function M.check(colorscheme, opts)
   end
   if comment_contrast < Roles.comment_floor(fg_contrast) - ROUNDING then
     fail("faithful.comment", ("comment is only %.2f:1"):format(comment_contrast))
+  end
+
+  -- A color readable on the background proves nothing about what is painted on top
+  -- of something else. So every group is judged against what is behind its own text.
+  local text = Roles.surface_text(roles, bg)
+  for name, role in pairs(roles) do
+    if role.least then
+      local faint = Roles.unreadable_on(text, role.hex)
+      if faint and Roles.can_ease(bg, role.over, role.mix, role.least) then
+        fail("faithful.surface", ("%s is too faint on %s, which could ease off"):format(faint.name, name))
+      end
+    end
+  end
+
+  -- By strength and not by contrast: with fg and bg at equal luminance the two differ
+  -- only in hue, and contrast reads that as rounding noise around 1.00:1.
+  if roles.visual.mix <= roles.cursorline.mix then
+    fail("faithful.surface", "a selection is fainter than the cursor line")
+  end
+
+  for name, group in pairs(colorscheme.groups) do
+    -- A theme's fg is never altered, so one already below the floor is the theme's to
+    -- choose. A readable fg is no excuse: it can still be the wrong side of a fill.
+    local excused = group.fg == fg and fg_contrast < opts.contrast
+    if group.fg and group.bg and not excused and not name:find(DECORATION) and not name:find(DECORATION_ALT) then
+      local best = math.max(Color.contrast(fg, group.bg), Color.contrast(bg, group.bg))
+      local ratio = Color.contrast(group.fg, group.bg)
+      if ratio < math.min(opts.contrast, best, fg_contrast) - ROUNDING then
+        fail("faithful.surface", ("%s is %.2f:1 on its own fill"):format(name, ratio))
+      end
+    end
   end
 
   -- UNIQUE: every pair of syntax roles can be told apart. ---------------------------

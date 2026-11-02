@@ -1,7 +1,7 @@
 -- The Neovim host: the one module that touches the outside world. Each function
 -- is a single effect and makes no decisions; those belong to App, where they can
 -- be tested.
-local Config = require("color-rex.config")
+local Config = require("colorrex.config")
 
 local M = {}
 

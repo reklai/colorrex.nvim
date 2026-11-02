@@ -10,7 +10,7 @@
 set -u
 
 VERSIONS=${VERSIONS:-v0.11.7 v0.12.0 stable nightly}
-CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/color-rex/nvim
+CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/colorrex/nvim
 case $(uname -m) in
   aarch64 | arm64) ARCH=arm64 ;;
   *) ARCH=x86_64 ;;
@@ -43,7 +43,7 @@ for binary in $NVIMS; do
   supported=$("$binary" --headless --clean -c 'lua io.stdout:write(tostring(vim.fn.has("nvim-0.12")))' -c 'qa!')
   echo "=== $version"
   if [ "$supported" != "1" ]; then
-    "$binary" --headless --clean --cmd "set rtp^=$PWD" -c 'runtime plugin/color-rex.lua' -c 'colorscheme color-rex' \
+    "$binary" --headless --clean --cmd "set rtp^=$PWD" -c 'runtime plugin/colorrex.lua' -c 'colorscheme colorrex' \
       -c 'lua io.stdout:write("\nexists=" .. vim.fn.exists(":ColorRex"))' -c 'qa!' 2>&1 | grep -q 'requires Neovim 0.12' &&
       echo "ok    refuses cleanly" || { echo "FAIL  no clean refusal"; status=1; }
     continue

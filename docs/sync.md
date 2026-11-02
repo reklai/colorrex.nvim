@@ -2,9 +2,9 @@
 
 What happens between a theme existing in your terminal and it being on screen.
 
-1. `:colorscheme color-rex` runs `colors/color-rex.lua`, which calls `App:load()`.
+1. `:colorscheme colorrex` runs `colors/colorrex.lua`, which calls `App:load()`.
 
-2. `App:seed()` reads the last theme from `stdpath("state")/color-rex/theme`. A
+2. `App:seed()` reads the last theme from `stdpath("state")/colorrex/theme`. A
    complete cached theme is compiled and used. Otherwise a neutral grey theme is,
    so a failed query looks unthemed rather than plausibly themed.
 
@@ -51,7 +51,7 @@ What happens between a theme existing in your terminal and it being on screen.
     | `FocusGained` or `VimResume` | `auto` is on |
     | Another Neovim on this machine saving a new theme | `auto` is on |
     | An OSC 11 reply, which means the terminal reported a change | `auto` is on |
-    | Neovim re-sourcing `colors/color-rex.lua` with `'background'` flipped | `auto` is on |
+    | Neovim re-sourcing `colors/colorrex.lua` with `'background'` flipped | `auto` is on |
 
 ## Between Neovims
 
@@ -68,7 +68,7 @@ matches what it shows costs no query.
 ## Dark and light
 
 Libghostty reports a change through mode 2031. Neovim consumes the report itself
-and sends OSC 11, so all a plugin ever sees is the OSC 11 reply. color-rex never
+and sends OSC 11, so all a plugin ever sees is the OSC 11 reply. colorrex never
 sends OSC 11, so any such reply means the terminal reported something, and it
 syncs. Values are not compared: Ghostty reports every config reload, and a new
 palette on the same background has to get through. A query never causes one of
@@ -83,7 +83,7 @@ The two terminals differ in when they report:
 
 Ghostty's report on reload is deliberate. Its source says: "The config could have
 changed any of our colors so update mode 2031." Its report can say light on a dark
-theme, which does not matter: color-rex reads the background from the theme.
+theme, which does not matter: colorrex reads the background from the theme.
 
 By the mode 2031 spec, a program changing colors with OSC 10, 11 or 12 is not
 reported, in either terminal.
@@ -117,7 +117,7 @@ detection, which leaves only the first. Both are covered in `test/e2e/rex.lua`.
   The real fix belongs in Rex and is small. libghostty leaves unsolicited reports
   to its host ("Hosts should gate unsolicited sends on mode 2031"), and Rex already
   links `ghostty_color_scheme_report_encode`. If `set_theme` sent that report when
-  it applies, as Ghostty does on reload, color-rex would need no change at all.
+  it applies, as Ghostty does on reload, colorrex would need no change at all.
 
 - **A lone unfocused Neovim has no focus event coming.** Rex's theme picker
   produced a focus event for the focused pane within 270ms in 12 of 14 observed
@@ -130,7 +130,7 @@ detection, which leaves only the first. Both are covered in `test/e2e/rex.lua`.
 - **Selection colors are not available.** The kitty spec defines them, but neither
   Rex nor Ghostty answers them, so `Visual` is always derived.
 
-- **Ghostty's `minimum-contrast` overrides color-rex.** If it is set, Ghostty
+- **Ghostty's `minimum-contrast` overrides colorrex.** If it is set, Ghostty
   adjusts text colors as it draws, so the screen can differ from `:ColorRex explain`.
 
 - **Ghostty's `osc-color-report-format = none` hides reloads.** OSC 21 still

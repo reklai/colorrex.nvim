@@ -1,8 +1,8 @@
 local F = require("fixtures")
 local T = require("harness")
-local App = require("color-rex.app")
-local Commands = require("color-rex.commands")
-local Config = require("color-rex.config")
+local App = require("colorrex.app")
+local Commands = require("colorrex.commands")
+local Config = require("colorrex.config")
 
 local function start()
   local host = F.fake_host()

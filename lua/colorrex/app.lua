@@ -4,11 +4,11 @@
 -- it does to the world goes through an injected host, and neovim.lua is the one real
 -- host. So all of this runs, and is tested, under plain LuaJIT with a fake one.
 -- Ghostty keeps its core and its apprt apart the same way.
-local Compiler = require("color-rex.compiler")
-local Config = require("color-rex.config")
-local Report = require("color-rex.report")
-local Terminal = require("color-rex.terminal")
-local Theme = require("color-rex.theme")
+local Compiler = require("colorrex.compiler")
+local Config = require("colorrex.config")
+local Report = require("colorrex.report")
+local Terminal = require("colorrex.terminal")
+local Theme = require("colorrex.theme")
 
 local App = {}
 App.__index = App
@@ -65,7 +65,7 @@ function App:seed()
   self.colorscheme = Compiler.compile(complete and theme or { ansi = {} }, self.config, self.host.background())
 end
 
---- Called by colors/color-rex.lua, which Neovim also re-sources on its own whenever
+--- Called by colors/colorrex.lua, which Neovim also re-sources on its own whenever
 --- 'background' changes.
 function App:load()
   self:seed()

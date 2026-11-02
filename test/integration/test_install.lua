@@ -3,7 +3,7 @@
 -- checkout, so no network is involved. Skips where lazy.nvim is not installed.
 local T = require("harness")
 
-local LAZY = vim.env.COLOR_REX_LAZY or vim.fs.joinpath(vim.fn.stdpath("data"), "lazy", "lazy.nvim")
+local LAZY = vim.env.COLORREX_LAZY or vim.fs.joinpath(vim.fn.stdpath("data"), "lazy", "lazy.nvim")
 
 local function root()
   return vim.fn.fnamemodify(T.root, ":p"):gsub("/$", "")
@@ -24,17 +24,17 @@ vim.opt.rtp:prepend(%q)
 require("lazy").setup({ spec = { %s }, dev = { path = %q, patterns = { "reklai" }, fallback = false },
   install = { missing = false }, rocks = { enabled = false }, change_detection = { enabled = false } })
 vim.schedule(function()
-  local plugin = require("lazy.core.config").plugins["color-rex.lua"]
-  local Config = require("color-rex.config")
+  local plugin = require("lazy.core.config").plugins["colorrex.nvim"]
+  local Config = require("colorrex.config")
   io.stdout:write(vim.json.encode({
     colors_name = vim.g.colors_name or "",
     loaded = plugin ~= nil and plugin._.loaded ~= nil,
     is_lazy = plugin ~= nil and plugin.lazy == true,
     priority = plugin ~= nil and plugin.priority or 0,
     command = vim.fn.exists(":ColorRex"),
-    mapped = next(vim.fn.maparg("<Plug>(color-rex)", "n", false, true)) ~= nil,
+    mapped = next(vim.fn.maparg("<Plug>(colorrex)", "n", false, true)) ~= nil,
     transparent = vim.api.nvim_get_hl(0, { name = "Normal" }).bg == nil,
-    lualine = #vim.api.nvim_get_runtime_file("lua/lualine/themes/color-rex.lua", false),
+    lualine = #vim.api.nvim_get_runtime_file("lua/lualine/themes/colorrex.lua", false),
   }))
   vim.cmd("qa!")
 end)
@@ -53,25 +53,25 @@ end)
 end
 
 T.test("install: the one-line lazy.nvim spec is a complete install", function()
-  local state = install([["reklai/color-rex.lua"]])
-  T.eq(state.colors_name, "color-rex")
+  local state = install([["reklai/colorrex.nvim"]])
+  T.eq(state.colors_name, "colorrex")
   T.ok(state.loaded, "loaded at startup")
   T.ok(not state.is_lazy, "not lazy-loaded")
   T.eq(state.priority, 1000)
   T.eq(state.command, 2)
-  T.ok(state.mapped, "<Plug>(color-rex)")
+  T.ok(state.mapped, "<Plug>(colorrex)")
   T.eq(state.lualine, 1)
 end)
 
 T.test("install: a canvasdiff-style explicit spec works the same", function()
-  local state = install([[{ "reklai/color-rex.lua", lazy = false, priority = 1000, opts = {} }]])
-  T.eq(state.colors_name, "color-rex")
+  local state = install([[{ "reklai/colorrex.nvim", lazy = false, priority = 1000, opts = {} }]])
+  T.eq(state.colors_name, "colorrex")
   T.eq(state.priority, 1000)
 end)
 
 T.test("install: a user's opts reach setup", function()
-  T.ok(install([["reklai/color-rex.lua"]]).transparent)
-  T.ok(not install([[{ "reklai/color-rex.lua", opts = { transparent = false } }]]).transparent)
+  T.ok(install([["reklai/colorrex.nvim"]]).transparent)
+  T.ok(not install([[{ "reklai/colorrex.nvim", opts = { transparent = false } }]]).transparent)
 end)
 
 T.test("install: a bad option fails loudly, it does not vanish", function()
@@ -79,7 +79,7 @@ T.test("install: a bad option fails loudly, it does not vanish", function()
     T.skip("lazy.nvim is not installed at " .. LAZY)
   end
   local ok = pcall(function()
-    require("color-rex").setup({ transparant = true })
+    require("colorrex").setup({ transparant = true })
   end)
   T.ok(not ok)
 end)

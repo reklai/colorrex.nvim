@@ -1,6 +1,6 @@
 local F = require("fixtures")
 local T = require("harness")
-local Protocol = require("color-rex.terminal.protocol")
+local Protocol = require("colorrex.terminal.protocol")
 
 T.test("protocol: one reply carries a whole theme", function()
   local event = Protocol.parse(F.reply(F.theme()))

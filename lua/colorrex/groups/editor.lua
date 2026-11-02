@@ -8,7 +8,7 @@ return function(define)
   G.NormalNC = { fg = "fg", bg = base }
   G.NormalFloat = { fg = "fg", bg = "element" }
   G.FloatBorder = { fg = "border_strong", bg = "element" }
-  G.FloatTitle = { fg = "accent", bg = "element", bold = true }
+  G.FloatTitle = { fg = "float_accent", bg = "element", bold = true }
   G.FloatFooter = { fg = "muted", bg = "element" }
   G.FloatShadow = { bg = "border" }
   G.FloatShadowThrough = { bg = "subtle" }
@@ -40,7 +40,7 @@ return function(define)
   G.Visual = { bg = "visual" }
   G.VisualNOS = { bg = "visual" }
   G.QuickFixLine = { bg = "visual", bold = true }
-  G.Search = { fg = "fg", bg = "search" }
+  G.Search = { fg = "on_search", bg = "search" }
   G.IncSearch = { fg = "on_accent", bg = "accent" }
   G.CurSearch = { fg = "on_accent", bg = "accent", bold = true }
   G.Substitute = { fg = "on_error", bg = "error" }
@@ -78,7 +78,7 @@ return function(define)
   G.PmenuExtraSel = { fg = "on_accent", bg = "accent" }
   G.PmenuSbar = { bg = "subtle" }
   G.PmenuThumb = { bg = "border_strong" }
-  G.PmenuMatch = { fg = "accent", bg = "element", bold = true }
+  G.PmenuMatch = { fg = "float_accent", bg = "element", bold = true }
   G.PmenuMatchSel = { fg = "on_accent", bg = "accent", bold = true }
   G.PmenuBorder = link("FloatBorder")
   G.PmenuShadow = link("FloatShadow")
@@ -91,8 +91,10 @@ return function(define)
   -- Diff ----------------------------------------------------------------------
   G.DiffAdd = { bg = "diff_add" }
   G.DiffChange = { bg = "diff_change" }
-  G.DiffDelete = { fg = "error", bg = "diff_delete" }
-  G.DiffText = { bg = "diff_text" }
+  G.DiffDelete = { fg = "diff_deleted", bg = "diff_delete" }
+  -- The one diff surface that sets its text. The changed words are short and meant
+  -- to stand out, and at this strength it would drown any syntax color on it.
+  G.DiffText = { fg = "on_diff_text", bg = "diff_text" }
   G.DiffTextAdd = link("DiffText")
   G.Added = { fg = "ok" }
   G.Changed = { fg = "warn" }

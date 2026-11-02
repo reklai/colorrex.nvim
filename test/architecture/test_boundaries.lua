@@ -5,42 +5,42 @@ local T = require("harness")
 -- decision, so it has to be made on purpose. The graph is acyclic and reads
 -- bottom-up: nothing requires anything listed after it.
 local GRAPH = {
-  ["color-rex.color"] = {},
-  ["color-rex.config"] = {},
-  ["color-rex.commands"] = {},
-  ["color-rex.terminal.protocol"] = {},
-  ["color-rex.terminal"] = { "color-rex.terminal.protocol" },
-  ["color-rex.theme"] = { "color-rex.color" },
-  ["color-rex.groups.editor"] = {},
-  ["color-rex.groups.syntax"] = {},
-  ["color-rex.groups.treesitter"] = {},
-  ["color-rex.groups.lsp"] = {},
-  ["color-rex.groups.diagnostics"] = {},
-  ["color-rex.groups.plugins"] = {},
-  ["color-rex.groups"] = {
-    "color-rex.groups.diagnostics", "color-rex.groups.editor", "color-rex.groups.lsp",
-    "color-rex.groups.plugins", "color-rex.groups.syntax", "color-rex.groups.treesitter",
+  ["colorrex.color"] = {},
+  ["colorrex.config"] = {},
+  ["colorrex.commands"] = {},
+  ["colorrex.terminal.protocol"] = {},
+  ["colorrex.terminal"] = { "colorrex.terminal.protocol" },
+  ["colorrex.theme"] = { "colorrex.color" },
+  ["colorrex.groups.editor"] = {},
+  ["colorrex.groups.syntax"] = {},
+  ["colorrex.groups.treesitter"] = {},
+  ["colorrex.groups.lsp"] = {},
+  ["colorrex.groups.diagnostics"] = {},
+  ["colorrex.groups.plugins"] = {},
+  ["colorrex.groups"] = {
+    "colorrex.groups.diagnostics", "colorrex.groups.editor", "colorrex.groups.lsp",
+    "colorrex.groups.plugins", "colorrex.groups.syntax", "colorrex.groups.treesitter",
   },
-  ["color-rex.lualine"] = {},
-  ["color-rex.roles.casting"] = { "color-rex.color" },
-  ["color-rex.roles"] = { "color-rex.color", "color-rex.roles.casting" },
-  ["color-rex.compiler.standalone"] = {},
-  ["color-rex.compiler.promises"] = { "color-rex.color", "color-rex.roles" },
-  ["color-rex.compiler"] = {
-    "color-rex.compiler.promises", "color-rex.compiler.standalone", "color-rex.groups", "color-rex.lualine",
-    "color-rex.roles", "color-rex.theme",
+  ["colorrex.lualine"] = {},
+  ["colorrex.roles.casting"] = { "colorrex.color" },
+  ["colorrex.roles"] = { "colorrex.color", "colorrex.roles.casting" },
+  ["colorrex.compiler.standalone"] = {},
+  ["colorrex.compiler.promises"] = { "colorrex.color", "colorrex.roles" },
+  ["colorrex.compiler"] = {
+    "colorrex.compiler.promises", "colorrex.compiler.standalone", "colorrex.groups", "colorrex.lualine",
+    "colorrex.roles", "colorrex.theme",
   },
-  ["color-rex.report"] = {},
-  ["color-rex.app"] = {
-    "color-rex.compiler", "color-rex.config", "color-rex.report", "color-rex.terminal", "color-rex.theme",
+  ["colorrex.report"] = {},
+  ["colorrex.app"] = {
+    "colorrex.compiler", "colorrex.config", "colorrex.report", "colorrex.terminal", "colorrex.theme",
   },
-  ["color-rex.neovim"] = { "color-rex.config" },
-  ["color-rex.health"] = { "color-rex", "color-rex.config" },
-  ["color-rex"] = { "color-rex.app", "color-rex.commands", "color-rex.config", "color-rex.neovim" },
+  ["colorrex.neovim"] = { "colorrex.config" },
+  ["colorrex.health"] = { "colorrex", "colorrex.config" },
+  ["colorrex"] = { "colorrex.app", "colorrex.commands", "colorrex.config", "colorrex.neovim" },
 }
 
 -- The only modules allowed to touch Neovim or the machine.
-local EFFECTFUL = { ["color-rex"] = true, ["color-rex.neovim"] = true, ["color-rex.health"] = true }
+local EFFECTFUL = { ["colorrex"] = true, ["colorrex.neovim"] = true, ["colorrex.health"] = true }
 
 local function files(dir)
   local out = {}
@@ -142,7 +142,7 @@ end)
 
 T.test("architecture: x.lua is the public face of x/", function()
   for name, path in pairs(modules()) do
-    local parent = name:match("^(color%-rex%.[%w_]+)%.[%w_]+$")
+    local parent = name:match("^(colorrex%.[%w_]+)%.[%w_]+$")
     if parent then
       T.ok(modules()[parent], ("%s has no public module %s"):format(path, parent))
       for other in pairs(GRAPH) do
@@ -160,24 +160,24 @@ T.test("architecture: zero dependencies, not one require leaves this plugin", fu
   for _, dir in ipairs({ "lua", "colors", "plugin" }) do
     for _, path in ipairs(files(dir)) do
       for _, name in ipairs(requires(path)) do
-        T.ok(name == "color-rex" or name:match("^color%-rex%."), ("%s requires %s"):format(path, name))
+        T.ok(name == "colorrex" or name:match("^colorrex%."), ("%s requires %s"):format(path, name))
       end
     end
   end
 end)
 
 T.test("architecture: one name everywhere", function()
-  T.eq(require("color-rex.config").NAME, "color-rex")
-  for _, path in ipairs({ "colors/color-rex.lua", "plugin/color-rex.lua", "lua/color-rex.lua",
-    "lua/lualine/themes/color-rex.lua", "doc/color-rex.txt", "lazy.lua" }) do
+  T.eq(require("colorrex.config").NAME, "colorrex")
+  for _, path in ipairs({ "colors/colorrex.lua", "plugin/colorrex.lua", "lua/colorrex.lua",
+    "lua/lualine/themes/colorrex.lua", "doc/colorrex.txt", "lazy.lua" }) do
     T.ok(io.open(T.root .. "/" .. path), path .. " is missing")
   end
 end)
 
 T.test("architecture: groups and lualine name roles, there is not one color literal", function()
-  local paths = files("lua/color-rex/groups")
-  paths[#paths + 1] = T.root .. "/lua/color-rex/groups.lua"
-  paths[#paths + 1] = T.root .. "/lua/color-rex/lualine.lua"
+  local paths = files("lua/colorrex/groups")
+  paths[#paths + 1] = T.root .. "/lua/colorrex/groups.lua"
+  paths[#paths + 1] = T.root .. "/lua/colorrex/lualine.lua"
   T.ok(#paths == 8, "every area must be scanned")
   for _, path in ipairs(paths) do
     T.ok(not read(path):match("#%x%x%x%x%x%x"), path)

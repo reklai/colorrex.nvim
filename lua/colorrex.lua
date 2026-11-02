@@ -1,8 +1,8 @@
--- color-rex: compiles the theme a libghostty terminal is showing into a native
--- Neovim colorscheme, with no dependencies. `:help color-rex`
-local App = require("color-rex.app")
-local Commands = require("color-rex.commands")
-local Config = require("color-rex.config")
+-- colorrex: compiles the theme a libghostty terminal is showing into a native
+-- Neovim colorscheme, with no dependencies. `:help colorrex`
+local App = require("colorrex.app")
+local Commands = require("colorrex.commands")
+local Config = require("colorrex.config")
 
 local M = {}
 
@@ -11,7 +11,7 @@ local app, warned
 
 local function get()
   if not app then
-    app = App.new(require("color-rex.neovim").new(), config)
+    app = App.new(require("colorrex.neovim").new(), config)
   end
   return app
 end
@@ -23,7 +23,7 @@ local function supported()
   end
   if not warned then
     warned = true
-    vim.notify("color-rex requires Neovim 0.12 or newer", vim.log.levels.ERROR)
+    vim.notify("colorrex requires Neovim 0.12 or newer", vim.log.levels.ERROR)
   end
   return false
 end
@@ -38,7 +38,7 @@ function M.setup(opts)
   vim.cmd.colorscheme(Config.NAME)
 end
 
---- Called by `:colorscheme color-rex`.
+--- Called by `:colorscheme colorrex`.
 function M.load()
   if supported() then
     get():load()
@@ -50,7 +50,7 @@ function M.status()
   return get():status()
 end
 
---- The current lualine theme. Used by lua/lualine/themes/color-rex.lua.
+--- The current lualine theme. Used by lua/lualine/themes/colorrex.lua.
 function M.lualine()
   return get():current().lualine
 end

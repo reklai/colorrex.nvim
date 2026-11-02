@@ -7,7 +7,7 @@ return function(define)
     G["DiagnosticVirtualText" .. name] = { fg = role }
     G["DiagnosticVirtualLines" .. name] = { fg = role }
     G["DiagnosticSign" .. name] = { fg = role }
-    G["DiagnosticFloating" .. name] = { fg = role, bg = "element" }
+    G["DiagnosticFloating" .. name] = { fg = "float_" .. role, bg = "element" }
     G["DiagnosticUnderline" .. name] = { sp = role, undercurl = true }
   end
   G.DiagnosticUnnecessary = { fg = "comment" }

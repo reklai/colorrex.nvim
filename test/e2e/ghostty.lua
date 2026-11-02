@@ -76,8 +76,8 @@ local function open(theme, extra, manual)
       XDG_RUNTIME_DIR = vim.env.XDG_RUNTIME_DIR,
       DBUS_SESSION_BUS_ADDRESS = vim.env.DBUS_SESSION_BUS_ADDRESS,
       XDG_STATE_HOME = dir .. "/state",
-      COLOR_REX_ROOT = root,
-      COLOR_REX_E2E_MANUAL = manual and "1" or nil,
+      COLORREX_ROOT = root,
+      COLORREX_E2E_MANUAL = manual and "1" or nil,
     },
   })
   windows[#windows + 1] = window
@@ -86,7 +86,7 @@ local function open(theme, extra, manual)
   -- Neovim opens this socket before it runs init.lua, so wait for the plugin too.
   local ready = vim.wait(8000, function()
     local ok, loaded = pcall(vim.rpcrequest, window.channel, "nvim_exec_lua",
-      [[return package.loaded["color-rex"] ~= nil]], {})
+      [[return package.loaded["colorrex"] ~= nil]], {})
     return ok and loaded
   end, 20)
   assert(ready, "the plugin never loaded")
@@ -94,7 +94,7 @@ local function open(theme, extra, manual)
 end
 
 local STATUS = [[
-  local status = require("color-rex").status()
+  local status = require("colorrex").status()
   local function hl(name, key)
     local value = vim.api.nvim_get_hl(0, { name = name, link = false })[key]
     return value and ("#%06x"):format(value) or ""
@@ -147,7 +147,7 @@ local function suite()
   end))
   local status = state(window)
   check("the terminal is what it says", status.env == "ghostty", status.env)
-  check("colorscheme is color-rex", status.colors_name == "color-rex", status.colors_name)
+  check("colorscheme is colorrex", status.colors_name == "colorrex", status.colors_name)
 
   for _, step in ipairs({
     { "dark to dark", THEMES.gruvbox },
@@ -164,11 +164,11 @@ local function suite()
     vim.wait(25, function() return false end)
   end
   check("a reload storm ends on the final theme", settles(window, matches(THEMES.gruvbox)))
-  check("and Neovim is healthy after it", state(window).colors_name == "color-rex")
+  check("and Neovim is healthy after it", state(window).colors_name == "colorrex")
   close(window)
 
-  -- The case that decides whether a theme is its own colorscheme: one tinted
-  -- background, and every other color the same.
+  -- A tint changes the theme, and nothing about how its code reads: the same colors
+  -- are the same colorscheme.
   local tinted = open(THEMES.dracula)
   check("tint: launch", settles(tinted, matches(THEMES.dracula)))
   local before = state(tinted)
@@ -176,10 +176,9 @@ local function suite()
   check("tint: only the background changed in the theme", settles(tinted, matches(THEMES.dracula_tint)))
   local after = state(tinted)
   check("tint: the theme has a different id", before.id ~= after.id, before.id)
-  check("tint: strings keep their color", before.string == after.string)
-  check("tint: the code itself reads differently",
-    before.keyword ~= after.keyword or before.func ~= after.func or before.type ~= after.type,
-    vim.inspect({ before, after }))
+  check("tint: the code reads the same",
+    before.keyword == after.keyword and before.func == after.func and before.type == after.type
+      and before.string == after.string, vim.inspect({ before, after }))
   close(tinted)
 
   local quiet = open(THEMES.dracula, "osc-color-report-format = none")

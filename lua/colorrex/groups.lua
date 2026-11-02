@@ -7,12 +7,12 @@
 -- Each file in groups/ is one area of the editor, and returns a function from the
 -- helpers below to its groups. Add a plugin to groups/plugins.lua.
 local AREAS = {
-  require("color-rex.groups.editor"),
-  require("color-rex.groups.syntax"),
-  require("color-rex.groups.treesitter"),
-  require("color-rex.groups.lsp"),
-  require("color-rex.groups.diagnostics"),
-  require("color-rex.groups.plugins"),
+  require("colorrex.groups.editor"),
+  require("colorrex.groups.syntax"),
+  require("colorrex.groups.treesitter"),
+  require("colorrex.groups.lsp"),
+  require("colorrex.groups.diagnostics"),
+  require("colorrex.groups.plugins"),
 }
 
 local M = {}

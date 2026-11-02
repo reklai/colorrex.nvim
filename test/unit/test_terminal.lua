@@ -1,6 +1,6 @@
 local F = require("fixtures")
 local T = require("harness")
-local Terminal = require("color-rex.terminal")
+local Terminal = require("colorrex.terminal")
 
 local function harness()
   local host = F.fake_host()

@@ -10,7 +10,7 @@ if not vim.startswith(RT, "/") then
 end
 vim.opt.runtimepath:prepend(RT)
 vim.env.XDG_STATE_HOME = vim.fn.tempname()
-vim.cmd("runtime plugin/color-rex.lua")
+vim.cmd("runtime plugin/colorrex.lua")
 
 local function hl(name, key)
   local value = vim.api.nvim_get_hl(0, { name = name, link = false })[key]
@@ -18,12 +18,12 @@ local function hl(name, key)
 end
 
 local function colorscheme()
-  vim.cmd.colorscheme("color-rex")
+  vim.cmd.colorscheme("colorrex")
 end
 
-T.test("neovim: :colorscheme color-rex loads, sets its name, and defines the groups", function()
+T.test("neovim: :colorscheme colorrex loads, sets its name, and defines the groups", function()
   colorscheme()
-  T.eq(vim.g.colors_name, "color-rex")
+  T.eq(vim.g.colors_name, "colorrex")
   T.ok(hl("Comment", "fg"))
   T.ok(hl("@function", "fg"))
   T.ok(vim.g.terminal_color_1)
@@ -69,8 +69,8 @@ end)
 
 T.test("neovim: the command and every <Plug> mapping exist", function()
   T.eq(vim.fn.exists(":ColorRex"), 2)
-  for _, lhs in ipairs({ "<Plug>(color-rex)", "<Plug>(color-rex-status)", "<Plug>(color-rex-explain)",
-    "<Plug>(color-rex-check)" }) do
+  for _, lhs in ipairs({ "<Plug>(colorrex)", "<Plug>(colorrex-status)", "<Plug>(colorrex-explain)",
+    "<Plug>(colorrex-check)" }) do
     T.ok(next(vim.fn.maparg(lhs, "n", false, true)) ~= nil, lhs)
   end
 end)
@@ -86,8 +86,8 @@ T.test("neovim: a compiled standalone colorscheme loads with the plugin out of t
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir .. "/colors", "p")
   local before = hl("Comment", "fg")
-  local Compiler = require("color-rex.compiler")
-  local text = Compiler.standalone(Compiler.compile({ ansi = {} }, require("color-rex.config").resolve()), "standalone")
+  local Compiler = require("colorrex.compiler")
+  local text = Compiler.standalone(Compiler.compile({ ansi = {} }, require("colorrex.config").resolve()), "standalone")
   local file = assert(io.open(dir .. "/colors/standalone.lua", "w"))
   file:write(text)
   file:close()
@@ -101,7 +101,7 @@ end)
 
 T.test("neovim: lualine finds the theme by name, without lualine being a dependency", function()
   colorscheme()
-  local theme = dofile(RT .. "/lua/lualine/themes/color-rex.lua")
+  local theme = dofile(RT .. "/lua/lualine/themes/colorrex.lua")
   for _, mode in ipairs({ "normal", "insert", "visual", "replace", "command", "inactive" }) do
     for _, section in ipairs({ "a", "b", "c" }) do
       T.ok(theme[mode][section].bg:match("^#%x+$"), mode .. "." .. section)
@@ -111,25 +111,25 @@ end)
 
 T.test("neovim: switching to another colorscheme releases every autocommand", function()
   colorscheme()
-  T.ok(#vim.api.nvim_get_autocmds({ group = "color-rex" }) > 0)
+  T.ok(#vim.api.nvim_get_autocmds({ group = "colorrex" }) > 0)
   vim.cmd.colorscheme("habamax")
-  T.ok(not pcall(vim.api.nvim_get_autocmds, { group = "color-rex" }))
+  T.ok(not pcall(vim.api.nvim_get_autocmds, { group = "colorrex" }))
   colorscheme()
-  T.ok(#vim.api.nvim_get_autocmds({ group = "color-rex" }) > 0)
+  T.ok(#vim.api.nvim_get_autocmds({ group = "colorrex" }) > 0)
 end)
 
 --- An App on the real host that believes a terminal is attached, wired up so
---- that :colorscheme color-rex reaches it.
+--- that :colorscheme colorrex reaches it.
 local function live_app(options)
-  local App = require("color-rex.app")
-  local host = require("color-rex.neovim").new()
+  local App = require("colorrex.app")
+  local host = require("colorrex.neovim").new()
   host.ui_ready = function() return true end
   host.send = function() end
-  local app = App.new(host, require("color-rex.config").resolve(options))
-  package.loaded["color-rex"] = { load = function() app:load() end }
+  local app = App.new(host, require("colorrex.config").resolve(options))
+  package.loaded["colorrex"] = { load = function() app:load() end }
   return app, function()
     app:detach()
-    package.loaded["color-rex"] = nil
+    package.loaded["colorrex"] = nil
   end
 end
 
@@ -140,8 +140,8 @@ T.test("neovim: 'background' set right after the colorscheme, during startup, do
   local file = assert(io.open(init, "w"))
   file:write(([[
 vim.opt.rtp:prepend(%q)
-vim.cmd("runtime plugin/color-rex.lua")
-vim.cmd.colorscheme("color-rex")
+vim.cmd("runtime plugin/colorrex.lua")
+vim.cmd.colorscheme("colorrex")
 vim.o.background = "light"
 vim.api.nvim_create_autocmd("VimEnter", { callback = function()
   vim.defer_fn(function()
@@ -153,7 +153,7 @@ end })
   file:close()
   local result = vim.system({ vim.v.progpath, "--headless", "-n", "-u", init },
     { text = true, env = { XDG_STATE_HOME = dir } }):wait(10000)
-  T.ok(result.stdout:match("^color%-rex:dark"), result.stdout .. (result.stderr or ""))
+  T.ok(result.stdout:match("^colorrex:dark"), result.stdout .. (result.stderr or ""))
 end)
 
 T.test("neovim: explain follows a syntax file's own group to the one we define", function()
@@ -180,7 +180,7 @@ T.test("neovim: a write by another process reaches the real watcher", function()
   colorscheme()
   vim.wait(100, function() return false end)
   local before = sent
-  local path = vim.fs.joinpath(vim.fn.stdpath("state"), "color-rex", "theme")
+  local path = vim.fs.joinpath(vim.fn.stdpath("state"), "colorrex", "theme")
   vim.fn.mkdir(vim.fs.dirname(path), "p")
   -- Written the way the plugin writes it, by something that is not this Neovim.
   vim.system({ "sh", "-c", ('printf "background = #123456\\n" > "%s.tmp" && mv "%s.tmp" "%s"'):format(path, path, path) }):wait()
@@ -215,7 +215,7 @@ T.test("neovim: with auto off, flipping 'background' keeps the colorscheme alive
   vim.wait(200, function() return vim.o.background == "dark" end, 5)
   local name, background, after = vim.g.colors_name, vim.o.background, hl("Comment", "fg")
   finish()
-  T.eq(name, "color-rex")
+  T.eq(name, "colorrex")
   T.eq(background, "dark", "the theme keeps its own background")
   T.eq(after, comment)
 end)
@@ -227,7 +227,7 @@ T.test("neovim: with auto on, flipping 'background' waits for the real theme", f
   local name, background = vim.g.colors_name, vim.o.background
   finish()
   vim.o.background = "dark"
-  T.eq(name, "color-rex")
+  T.eq(name, "colorrex")
   T.eq(background, "light")
 end)
 
@@ -253,7 +253,7 @@ T.test("neovim: in a terminal that is not libghostty, a real TUI explains why it
   vim.fn.mkdir(dir, "p")
   local init = dir .. "/init.lua"
   local file = assert(io.open(init, "w"))
-  file:write(("vim.opt.rtp:prepend(%q)\nvim.cmd('runtime plugin/color-rex.lua')\nvim.cmd.colorscheme('color-rex')\n"):format(RT))
+  file:write(("vim.opt.rtp:prepend(%q)\nvim.cmd('runtime plugin/colorrex.lua')\nvim.cmd.colorscheme('colorrex')\n"):format(RT))
   file:close()
   local buf = vim.api.nvim_create_buf(true, false)
   vim.api.nvim_set_current_buf(buf)
@@ -279,15 +279,15 @@ T.test("neovim: below the version floor, the colorscheme refuses cleanly", funct
     return feature == "nvim-0.12" and 0 or has(feature)
   end
   vim.notify = function(message) notes[#notes + 1] = message end
-  package.loaded["color-rex"] = nil
+  package.loaded["colorrex"] = nil
   local ok, err = pcall(function()
-    local plugin = require("color-rex")
+    local plugin = require("colorrex")
     plugin.load()
     plugin.load()
   end)
   vim.fn.has = has
   vim.notify = notify
-  package.loaded["color-rex"] = nil
+  package.loaded["colorrex"] = nil
   T.ok(ok, err)
   T.eq(#notes, 1, "said once")
   T.ok(notes[1]:match("0%.12"), notes[1])
@@ -307,7 +307,7 @@ end)
 
 T.test("neovim: :checkhealth runs clean", function()
   colorscheme()
-  require("color-rex.health").check()
+  require("colorrex.health").check()
 end)
 
 T.test("neovim: the colorscheme loads in well under a frame", function()

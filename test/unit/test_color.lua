@@ -1,5 +1,5 @@
 local T = require("harness")
-local Color = require("color-rex.color")
+local Color = require("colorrex.color")
 
 T.test("color: hex round-trips through OKLab for every channel extreme", function()
   for _, hex in ipairs({ "#000000", "#ffffff", "#ff0000", "#00ff00", "#0000ff", "#808080", "#123456" }) do

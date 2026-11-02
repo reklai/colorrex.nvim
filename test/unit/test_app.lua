@@ -1,13 +1,13 @@
 local F = require("fixtures")
 local T = require("harness")
-local App = require("color-rex.app")
-local Config = require("color-rex.config")
-local Theme = require("color-rex.theme")
+local App = require("colorrex.app")
+local Config = require("colorrex.config")
+local Theme = require("colorrex.theme")
 
 local function start(host_overrides)
   local host = F.fake_host(host_overrides)
   local app = App.new(host, Config.resolve())
-  -- Stand-in for Neovim: :colorscheme color-rex runs colors/color-rex.lua.
+  -- Stand-in for Neovim: :colorscheme colorrex runs colors/colorrex.lua.
   host.on_apply = function() app:load() end
   return app, host
 end
@@ -164,11 +164,9 @@ T.test("app: changing options recompiles the current theme", function()
   local app = start()
   app:load()
   answer(app, DRACULA)
-  local before = app.colorscheme.roles.keyword.hex
-  app:configure(Config.resolve({ identity = false }))
-  T.eq(app.colorscheme.roles.keyword.source, "ansi 5")
-  T.eq(app.colorscheme.filled.bg, "#282a36")
-  T.ok(before)
+  T.eq(app.colorscheme.groups.Normal.bg, nil)
+  app:configure(Config.resolve({ transparent = false }))
+  T.eq(app.colorscheme.groups.Normal.bg, "#282a36")
 end)
 
 T.test("app: launch resets the retries for a fresh start", function()
@@ -196,7 +194,7 @@ end)
 T.test("status: says when a query is still in flight", function()
   local app = start()
   app:load()
-  local Report = require("color-rex.report")
+  local Report = require("colorrex.report")
   T.ok(Report.status(app:status()):match("launch: waiting"))
 end)
 
@@ -265,9 +263,9 @@ T.test("notice: a terminal that never answers is told so, once, in one short lin
   T.eq(#host.messages, 1)
   T.eq(host.messages[1].level, "warn")
   T.ok(host.messages[1].message:match("Ghostty or Rex"))
-  T.ok(#("color-rex: " .. host.messages[1].message) <= 60, "past v:echospace, Neovim stops at a hit-enter prompt")
+  T.ok(#("colorrex: " .. host.messages[1].message) <= 60, "past v:echospace, Neovim stops at a hit-enter prompt")
   host.handlers.colorscheme_changed("habamax")
-  app:load() -- back to color-rex: a second launch in the same session
+  app:load() -- back to colorrex: a second launch in the same session
   host.advance(500)
   host.advance(5000)
   T.eq(#host.messages, 1, "once is enough")

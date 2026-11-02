@@ -1,5 +1,5 @@
 local T = require("harness")
-local Config = require("color-rex.config")
+local Config = require("colorrex.config")
 
 T.test("config: a typo fails loudly", function()
   T.ok(not pcall(Config.resolve, { transparant = true }))

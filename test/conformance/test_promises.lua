@@ -1,15 +1,13 @@
 -- Every theme is a test. With a local Ghostty install this runs all of them;
 -- without one it still runs the hand-picked hard cases below.
 local T = require("harness")
-local Compiler = require("color-rex.compiler")
-local Config = require("color-rex.config")
-local Theme = require("color-rex.theme")
+local Compiler = require("colorrex.compiler")
+local Config = require("colorrex.config")
+local Theme = require("colorrex.theme")
 
-local CORPUS = os.getenv("COLOR_REX_THEMES") or "/usr/share/ghostty/themes"
+local CORPUS = os.getenv("COLORREX_THEMES") or "/usr/share/ghostty/themes"
 local OPTS = Config.resolve()
--- The fixed mapping. A test about what the palette itself reaches has to use this:
--- with casting on, any edit reshuffles the roles and the test would prove nothing.
-local FIXED = Config.resolve({ identity = false })
+local FORCED = Config.resolve({ force_unique = true })
 
 local function corpus()
   local themes = {}
@@ -63,7 +61,7 @@ local HARD = {
 }
 
 -- Lowered by hand as the compiler improves. Raising one means it got worse.
-local TWIN_LIMIT, CLOSE_LIMIT, CLASH_LIMIT = 0, 4, 11
+local CLASH_LIMIT, RECAST_LIMIT, FADED_LIMIT, TWIN_LIMIT = 11, 47, 21, 35
 
 local function verify(name, theme)
   local colorscheme = Compiler.compile(theme, OPTS)
@@ -107,8 +105,8 @@ T.test("unique: a theme's color stays off screen only if it would look like one 
   if next(themes) == nil then
     T.skip("no theme corpus at " .. CORPUS)
   end
-  local Color = require("color-rex.color")
-  local Roles = require("color-rex.roles")
+  local Color = require("colorrex.color")
+  local Roles = require("colorrex.roles")
   local function rotated(hex)
     local r, g, b = hex:match("#(%x%x)(%x%x)(%x%x)")
     return "#" .. b .. r .. g
@@ -125,7 +123,7 @@ T.test("unique: a theme's color stays off screen only if it would look like one 
   end
   local dead, rejected, edits = {}, 0, 0
   for name, theme in pairs(themes) do
-    local before = Compiler.compile(theme, FIXED).groups
+    local before = Compiler.compile(theme, OPTS).groups
     for _, slot in ipairs({ 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14 }) do
       local original = theme.ansi[slot]
       local edited = rotated(original)
@@ -133,7 +131,7 @@ T.test("unique: a theme's color stays off screen only if it would look like one 
       if Color.chroma(original) >= Roles.MIN_CHROMA and Color.chroma(edited) >= Roles.MIN_CHROMA
         and Color.distance(original, edited) >= Color.DISTINCT then
         theme.ansi[slot] = edited
-        local after = Compiler.compile(theme, FIXED)
+        local after = Compiler.compile(theme, OPTS)
         theme.ansi[slot] = original
         edits = edits + 1
         local same = true
@@ -177,49 +175,194 @@ local function roles_apart(a, b, Color, limit)
   return count
 end
 
-T.test("unique: a theme reads as its own colorscheme, not just a tint of another", function()
-  -- The promise itself: compare only what you read in code, never fg, bg or
-  -- surfaces. Each compile sees one theme, so casting cannot rule out two themes
-  -- drawing the same arrangement, and these bounds only ever move down.
+local CHROMATIC = { 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14 }
+
+--- A copy of a theme with `change` applied, leaving the original alone.
+local function edited(theme, change)
+  local copy = { fg = theme.fg, bg = theme.bg, cursor = theme.cursor, ansi = {} }
+  for slot = 0, 15 do
+    copy.ansi[slot] = theme.ansi[slot]
+  end
+  change(copy)
+  return copy
+end
+
+--- One step of one channel: a difference nobody can see.
+local function one_step(hex)
+  local r, rest = hex:match("^#(%x%x)(.*)$")
+  local value = tonumber(r, 16)
+  return ("#%02x%s"):format(value < 255 and value + 1 or value - 1, rest)
+end
+
+T.test("identity: a difference nobody can see never changes how code reads", function()
   local themes = corpus()
   if next(themes) == nil then
     T.skip("no theme corpus at " .. CORPUS)
   end
-  local Color = require("color-rex.color")
+  local Color = require("colorrex.color")
+  local checked = 0
+  for name, theme in pairs(themes) do
+    local before = role_colors(Compiler.compile(theme, OPTS))
+    for _, field in ipairs({ "bg", "fg" }) do
+      local after = role_colors(Compiler.compile(edited(theme, function(copy)
+        copy[field] = one_step(copy[field])
+      end), OPTS))
+      T.ok(roles_apart(before, after, Color, Color.DISTINCT) < 3, ("%s: one step of %s recast it"):format(name, field))
+      checked = checked + 1
+    end
+  end
+  print(("  %d invisible edits, none recast a theme"):format(checked))
+end)
+
+T.test("identity: most themes keep the ANSI convention untouched", function()
+  local themes = corpus()
+  if next(themes) == nil then
+    T.skip("no theme corpus at " .. CORPUS)
+  end
+  local recast, total = 0, 0
+  for _, theme in pairs(themes) do
+    local colorscheme = Compiler.compile(theme, OPTS)
+    recast = recast + (colorscheme.casting == 1 and 0 or 1)
+    total = total + 1
+  end
+  print(("  %d of %d themes needed a role moved"):format(recast, total))
+  T.ok(recast <= RECAST_LIMIT, ("%d themes"):format(recast))
+end)
+
+T.test("identity: a theme keeps as much color as it came with", function()
+  local Color = require("colorrex.color")
+  local Roles = require("colorrex.roles")
+  local themes = corpus()
+  if next(themes) == nil then
+    T.skip("no theme corpus at " .. CORPUS)
+  end
+  local function middle(values)
+    table.sort(values)
+    return values[math.ceil(#values / 2)]
+  end
+  local faded = 0
+  for _, theme in pairs(themes) do
+    local colorscheme = Compiler.compile(theme, OPTS)
+    local shown, source = {}, {}
+    for _, role in ipairs(Roles.SYNTAX) do
+      shown[#shown + 1] = Color.chroma(colorscheme.roles[role.name].hex)
+      source[#source + 1] = Color.chroma(colorscheme.filled.ansi[role.slots[1]])
+    end
+    faded = faded + (middle(shown) < middle(source) * 0.9 and 1 or 0)
+  end
+  print(("  %d themes lost color to stay readable and distinct"):format(faded))
+  T.ok(faded <= FADED_LIMIT, ("%d themes"):format(faded))
+end)
+
+T.test("unique: types and numbers do not share a hue", function()
+  local Color = require("colorrex.color")
+  local themes = corpus()
+  if next(themes) == nil then
+    T.skip("no theme corpus at " .. CORPUS)
+  end
+  local twins = 0
+  for _, theme in pairs(themes) do
+    local roles = Compiler.compile(theme, OPTS).roles
+    local chromatic = Color.chroma(roles.type.hex) >= Color.HUE_MIN_CHROMA
+      and Color.chroma(roles.number.hex) >= Color.HUE_MIN_CHROMA
+    if chromatic and Color.hue_gap(roles.type.hex, roles.number.hex) < 15 then
+      twins = twins + 1
+    end
+  end
+  print(("  %d themes keep types and numbers in one hue"):format(twins))
+  T.ok(twins <= TWIN_LIMIT, ("%d themes"):format(twins))
+end)
+
+T.test("identity: a theme family stays a family", function()
+  local themes = corpus()
+  if next(themes) == nil then
+    T.skip("no theme corpus at " .. CORPUS)
+  end
+  local Color = require("colorrex.color")
+  for _, pair in ipairs({
+    { "Everforest Dark Hard", "Everforest Dark Med" }, { "Everforest Dark Med", "Everforest Dark Soft" },
+    { "Gruvbox Dark", "Gruvbox Dark Hard" }, { "Kanso Ink", "Kanso Zen" }, { "Noctis", "Noctis Obscuro" },
+    { "Dark+", "Dark Modern" }, { "Modus Vivendi", "Modus Vivendi Tinted" },
+  }) do
+    local a = role_colors(Compiler.compile(themes[pair[1]], OPTS))
+    local b = role_colors(Compiler.compile(themes[pair[2]], OPTS))
+    T.ok(roles_apart(a, b, Color, Color.DISTINCT) <= 1, pair[1] .. " and " .. pair[2] .. " came apart")
+  end
+end)
+
+T.test("identity: themes that read alike really do share their colors", function()
+  -- Two themes may look the same on screen only if their palettes do. Otherwise a
+  -- difference the theme's author made is being thrown away.
+  local themes = corpus()
+  if next(themes) == nil then
+    T.skip("no theme corpus at " .. CORPUS)
+  end
+  local Color = require("colorrex.color")
+  local Roles = require("colorrex.roles")
   local list = {}
   for name, theme in pairs(themes) do
     local colorscheme = Compiler.compile(theme, OPTS)
-    list[#list + 1] = { name = name, signature = colorscheme.signature, colors = role_colors(colorscheme) }
+    local colors = role_colors(colorscheme)
+    for _, role in ipairs(Roles.PALETTE) do -- errors and warnings show a theme's colors too
+      colors[#colors + 1] = colorscheme.roles[role.name].hex
+    end
+    list[#list + 1] = { name = name, signature = colorscheme.signature, colors = colors, filled = colorscheme.filled }
   end
-  local closest = {}
+  local hidden = 0
   for i = 1, #list do
     for j = i + 1, #list do
-      if list[i].signature ~= list[j].signature then
-        local apart = roles_apart(list[i].colors, list[j].colors, Color, Color.DISTINCT)
-        closest[i] = math.min(closest[i] or 99, apart)
-        closest[j] = math.min(closest[j] or 99, apart)
+      if list[i].signature ~= list[j].signature
+        and roles_apart(list[i].colors, list[j].colors, Color, Color.DISTINCT) == 0 then
+        for _, slot in ipairs(CHROMATIC) do
+          -- As shown: two colors too faint to read both land on the contrast floor,
+          -- so a difference between them was never one you could see.
+          local a = Color.lift(list[i].filled.ansi[slot], list[i].filled.bg, OPTS.contrast)
+          local b = Color.lift(list[j].filled.ansi[slot], list[j].filled.bg, OPTS.contrast)
+          if Color.distance(a, b) >= Color.DISTINCT then
+            hidden = hidden + 1
+            break
+          end
+        end
       end
     end
   end
-  local twins, close = 0, 0
-  for i = 1, #list do
-    twins = twins + (closest[i] == 0 and 1 or 0)
-    close = close + (closest[i] <= 2 and 1 or 0)
-  end
-  print(("  %d themes: %d with an identical twin, %d within 2 roles of another"):format(#list, twins, close))
-  T.ok(twins <= TWIN_LIMIT, ("%d themes have an identical twin"):format(twins))
-  T.ok(close <= CLOSE_LIMIT, ("%d themes are within 2 roles of another"):format(close))
+  print(("  %d pairs look alike despite a visible palette difference"):format(hidden))
+  T.eq(hidden, 0)
 end)
 
-T.test("readable: casting does not give the leading roles one hue", function()
-  -- Identity must not cost readability. Keywords, functions and types sit side by
-  -- side in all code. These bounds only ever move down.
+T.test("force_unique: separates even themes that share their colors", function()
   local themes = corpus()
   if next(themes) == nil then
     T.skip("no theme corpus at " .. CORPUS)
   end
-  local Casting = require("color-rex.roles.casting")
-  local Color = require("color-rex.color")
+  local Color = require("colorrex.color")
+  local list = {}
+  for name, theme in pairs(themes) do
+    local colorscheme = Compiler.compile(theme, FORCED)
+    list[#list + 1] = { name = name, signature = colorscheme.signature, colors = role_colors(colorscheme) }
+  end
+  local twins = 0
+  for i = 1, #list do
+    for j = i + 1, #list do
+      if list[i].signature ~= list[j].signature
+        and roles_apart(list[i].colors, list[j].colors, Color, Color.DISTINCT) == 0 then
+        twins = twins + 1
+      end
+    end
+  end
+  print(("  force_unique: %d pairs of %d themes read alike"):format(twins, #list))
+  T.eq(twins, 0)
+end)
+
+T.test("readable: the leading roles do not share one hue", function()
+  -- Keywords, functions and types sit side by side in all code. This bound only
+  -- ever moves down.
+  local themes = corpus()
+  if next(themes) == nil then
+    T.skip("no theme corpus at " .. CORPUS)
+  end
+  local Casting = require("colorrex.roles.casting")
+  local Color = require("colorrex.color")
   local LEADS = { "keyword", "func", "type" }
   local function clashes(colorscheme)
     for i = 1, #LEADS do
@@ -233,29 +376,29 @@ T.test("readable: casting does not give the leading roles one hue", function()
     end
     return false
   end
-  local cast, fixed = 0, 0
+  local plain, forced = 0, 0
   for _, theme in pairs(themes) do
-    cast = cast + (clashes(Compiler.compile(theme, OPTS)) and 1 or 0)
-    fixed = fixed + (clashes(Compiler.compile(theme, FIXED)) and 1 or 0)
+    plain = plain + (clashes(Compiler.compile(theme, OPTS)) and 1 or 0)
+    forced = forced + (clashes(Compiler.compile(theme, FORCED)) and 1 or 0)
   end
-  print(("  leading roles sharing a hue: %d themes cast, %d with the fixed mapping"):format(cast, fixed))
-  T.ok(cast <= CLASH_LIMIT, ("%d themes"):format(cast))
-  T.ok(cast < fixed, "casting must read better than the fixed mapping, not worse")
+  print(("  leading roles sharing a hue: %d themes, %d with force_unique"):format(plain, forced))
+  T.ok(plain <= CLASH_LIMIT, ("%d themes"):format(plain))
+  T.ok(forced <= CLASH_LIMIT, ("%d themes with force_unique"):format(forced))
 end)
 
 T.test("groups: a group defined in two areas is refused", function()
-  local Editor = require("color-rex.groups.editor")
-  package.loaded["color-rex.groups.editor"] = function(define)
+  local Editor = require("colorrex.groups.editor")
+  package.loaded["colorrex.groups.editor"] = function(define)
     local groups = Editor(define)
     groups.Comment = {} -- groups/syntax.lua owns this one
     return groups
   end
-  package.loaded["color-rex.groups"] = nil
+  package.loaded["colorrex.groups"] = nil
   local ok, err = pcall(function()
-    require("color-rex.groups").build(OPTS, Compiler.compile(HARD.one_light, OPTS).styles)
+    require("colorrex.groups").build(OPTS, Compiler.compile(HARD.one_light, OPTS).styles)
   end)
-  package.loaded["color-rex.groups.editor"] = Editor
-  package.loaded["color-rex.groups"] = nil
+  package.loaded["colorrex.groups.editor"] = Editor
+  package.loaded["colorrex.groups"] = nil
   T.ok(not ok and tostring(err):match("defined in two areas"), tostring(err))
 end)
 
@@ -282,42 +425,38 @@ T.test("standalone: groups are written in sorted order, so a theme writes one fi
   T.ok(#previous > 0, "found no groups to compare")
 end)
 
-T.test("unique: casting moves colors between roles and changes no color", function()
+T.test("casting: moves colors between roles and changes no color", function()
   local themes = corpus()
   themes.one_light, themes.solarized_light = HARD.one_light, HARD.solarized_light
   for name, theme in pairs(themes) do
-    local cast, fixed = Compiler.compile(theme, OPTS), Compiler.compile(theme, FIXED)
+    local forced, plain = Compiler.compile(theme, FORCED), Compiler.compile(theme, OPTS)
     local a, b = {}, {}
-    for _, role in ipairs({ "keyword", "func", "type", "number", "operator", "preproc", "special" }) do
-      a[#a + 1], b[#b + 1] = cast.roles[role].hex, fixed.roles[role].hex
+    for _, role in ipairs(require("colorrex.roles.casting").ROLES) do
+      a[#a + 1], b[#b + 1] = forced.roles[role].hex, plain.roles[role].hex
     end
     table.sort(a)
     table.sort(b)
     T.eq(table.concat(a), table.concat(b), name)
-    T.eq(cast.roles.string.hex, fixed.roles.string.hex, name .. " string")
-    T.eq(cast.roles.comment.hex, fixed.roles.comment.hex, name .. " comment")
+    T.eq(forced.roles.string.hex, plain.roles.string.hex, name .. " string")
+    T.eq(forced.roles.comment.hex, plain.roles.comment.hex, name .. " comment")
   end
 end)
 
-T.test("unique: a theme keeps its casting and its id, and different themes get different ids", function()
+T.test("identity: every theme has a stable id of its own", function()
   local themes = corpus()
   if next(themes) == nil then
     T.skip("no theme corpus at " .. CORPUS)
   end
-  local ids, used, count, arrangements = {}, {}, 0, 0
+  local ids, count = {}, 0
   for name, theme in pairs(themes) do
-    local first, second = Compiler.compile(theme, OPTS), Compiler.compile(theme, OPTS)
+    local first, second = Compiler.compile(theme, FORCED), Compiler.compile(theme, FORCED)
     T.eq(first.id, second.id, name)
     T.eq(first.casting, second.casting, name)
     T.ok(ids[first.id] == nil or ids[first.id] == first.signature, name .. " shares an id with another theme")
     ids[first.id] = first.signature
-    arrangements = arrangements + (used[first.casting] and 0 or 1)
-    used[first.casting] = true
     count = count + 1
   end
-  print(("  %d themes spread over %d arrangements"):format(count, arrangements))
-  -- 819 random draws from 2520 land on about 700 different ones.
-  T.ok(arrangements > count * 0.75, "themes must spread, not bunch up on a favored arrangement")
+  print(("  %d themes, each with an id"):format(count))
 end)
 
 T.test("unique: a style only separates colors when the palette truly cannot", function()
@@ -328,11 +467,11 @@ T.test("unique: a style only separates colors when the palette truly cannot", fu
   if next(themes) == nil then
     T.skip("no theme corpus at " .. CORPUS)
   end
-  local Color = require("color-rex.color")
-  local Roles = require("color-rex.roles")
+  local Color = require("colorrex.color")
+  local Roles = require("colorrex.roles")
   local total, flat = 0, 0
   for _, theme in pairs(themes) do
-    local roles = Compiler.compile(theme, FIXED).roles
+    local roles = Compiler.compile(theme, OPTS).roles
     local names = { "keyword", "func", "string", "type", "number", "operator" }
     local touching = false
     for i = 1, #names do

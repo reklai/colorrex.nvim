@@ -48,10 +48,10 @@ for name, theme in pairs(require("themes")) do
   THEMES[name] = rex_theme(theme)
 end
 
-local session = vim.json.decode(rex("new", "color-rex-e2e", "--json", "--shell=none", "--", "/bin/sleep", "600")).session_id
+local session = vim.json.decode(rex("new", "colorrex-e2e", "--json", "--shell=none", "--", "/bin/sleep", "600")).session_id
 
 local function nvim_tab(name, delay, env, extra)
-  local parts = { ("sleep %s;"):format(delay), "COLOR_REX_ROOT=" .. root, "XDG_STATE_HOME=" .. (env or work) }
+  local parts = { ("sleep %s;"):format(delay), "COLORREX_ROOT=" .. root, "XDG_STATE_HOME=" .. (env or work) }
   parts[#parts + 1] = extra
   parts[#parts + 1] = ("exec %s -n -u %s/test/e2e/init.lua %s/test/e2e/sample.lua"):format(vim.v.progpath, root, root)
   local tab = vim.json.decode(rex("window", "new", "-s", session, name, "--focus=false", "--json", "--shell=none",
@@ -105,7 +105,7 @@ local function suite()
   check("the keybind syncs a first theme", state.bg == "#282a36" and state.string ~= vim.NIL, vim.inspect(state))
   check("a live sync reports a full theme from the terminal", state.completeness == "full" and state.source == "terminal")
   check("transparent: the terminal keeps painting the background", state.normal_bg == vim.NIL)
-  check("colorscheme stays color-rex", state.colors_name == "color-rex")
+  check("colorscheme stays colorrex", state.colors_name == "colorrex")
 
   theme(tab, "gruvbox")
   wait(600)
@@ -145,7 +145,7 @@ local function suite()
   send(cached, "\027:qa!\r")
   wait(300)
 
-  local explicit = nvim_tab("explicit", "0.3", nil, "COLOR_REX_E2E_BACKGROUND=dark")
+  local explicit = nvim_tab("explicit", "0.3", nil, "COLORREX_E2E_BACKGROUND=dark")
   wait(900)
   theme(explicit, "dracula")
   send(explicit, "gS")
@@ -164,7 +164,7 @@ local function suite()
   vim.fn.mkdir(shared, "p")
   local first = nvim_tab("broadcast-a", "0.3", shared)
   local second = nvim_tab("broadcast-b", "0.3", shared)
-  local manual = nvim_tab("broadcast-c", "0.3", shared, "COLOR_REX_E2E_MANUAL=1")
+  local manual = nvim_tab("broadcast-c", "0.3", shared, "COLORREX_E2E_MANUAL=1")
   wait(5500) -- launch retries finish, so nothing but the broadcast can act
   for _, tab in ipairs({ first, second, manual }) do
     theme(tab, "dracula")

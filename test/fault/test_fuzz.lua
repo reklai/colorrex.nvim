@@ -1,11 +1,11 @@
 -- Hostile input. Seeds are fixed so that any failure replays exactly.
 local F = require("fixtures")
 local T = require("harness")
-local Compiler = require("color-rex.compiler")
-local Config = require("color-rex.config")
-local Protocol = require("color-rex.terminal.protocol")
-local Terminal = require("color-rex.terminal")
-local Theme = require("color-rex.theme")
+local Compiler = require("colorrex.compiler")
+local Config = require("colorrex.config")
+local Protocol = require("colorrex.terminal.protocol")
+local Terminal = require("colorrex.terminal")
+local Theme = require("colorrex.theme")
 
 local OPTS = Config.resolve()
 

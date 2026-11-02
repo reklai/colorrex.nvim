@@ -1,5 +1,5 @@
 # Everything except test/e2e, which needs a real Rex and a desktop. v0.12.0 is the
-# floor color-rex asserts: a floor that is never run is a claim, not a test.
+# floor colorrex asserts: a floor that is never run is a claim, not a test.
 #
 # The promises are only proven against real themes, and the conformance bounds are
 # measured on a specific set of them, so the set is pinned rather than whatever is
@@ -39,6 +39,6 @@ jobs:
           echo "$THEMES_SHA256  $RUNNER_TEMP/themes.tgz" | sha256sum -c -
           tar xzf "$RUNNER_TEMP/themes.tgz" -C "$RUNNER_TEMP/themes"
           themes=$(dirname "$(find "$RUNNER_TEMP/themes" -type f -name Dracula | head -n 1)")
-          echo "COLOR_REX_THEMES=$themes" >> "$GITHUB_ENV"
-          echo "COLOR_REX_LAZY=$PWD/.deps/lazy.nvim" >> "$GITHUB_ENV"
+          echo "COLORREX_THEMES=$themes" >> "$GITHUB_ENV"
+          echo "COLORREX_LAZY=$PWD/.deps/lazy.nvim" >> "$GITHUB_ENV"
       - run: make test

@@ -1,0 +1,1 @@
+require("colorrex").load()

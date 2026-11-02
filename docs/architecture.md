@@ -5,7 +5,7 @@ dependency graph; where this file and that test disagree, the test wins.
 
 ## Scope
 
-color-rex is for libghostty terminals, such as Ghostty and Rex. It relies on how
+colorrex is for libghostty terminals, such as Ghostty and Rex. It relies on how
 they behave and carries no code for any other terminal. A terminal that does not
 behave this way is simply not supported.
 
@@ -13,11 +13,11 @@ behave this way is simply not supported.
 
 ```text
 lazy.lua                    what lazy.nvim needs to install it in one line
-colors/color-rex.lua        :colorscheme color-rex
-plugin/color-rex.lua        :ColorRex and its <Plug> mappings
+colors/colorrex.lua        :colorscheme colorrex
+plugin/colorrex.lua        :ColorRex and its <Plug> mappings
 lua/lualine/themes/         found by lualine, by name
-lua/color-rex.lua           the public API; owns one App
-lua/color-rex/
+lua/colorrex.lua           the public API; owns one App
+lua/colorrex/
   app.lua                   when colors change
   commands.lua              the catalog behind :ColorRex and <Plug>
   report.lua                what the commands say
@@ -49,7 +49,7 @@ areas is refused at compile time.
 ## The rules
 
 1. **Only `neovim.lua` has effects.** It and the two thin Neovim entry points
-   (`color-rex.lua`, `health.lua`) are the only modules that mention `vim`, `io`
+   (`colorrex.lua`, `health.lua`) are the only modules that mention `vim`, `io`
    or `os`. Everything else runs under plain LuaJIT.
 2. **`App` reaches the world through an injected host.** That host is
    `neovim.lua`, or a fake with a hand-cranked clock in tests. This is Ghostty's
@@ -73,7 +73,7 @@ Use these words, in code and in prose.
 | role | What a color means in an editor: `keyword`, `error`, `accent`. |
 | fingerprint | A number computed from a theme. The id is its short form. |
 | arrangement | One assignment of colors to roles. |
-| casting | The arrangement a theme uses, by number. |
+| casting | The arrangement a theme uses, by number. 1 is the ANSI convention. |
 | group spec | A highlight group written in roles. |
 | colorscheme | The compiler's output, everything needed to paint. |
 | query | One request to the terminal. `terminal.query()` starts one. |
@@ -106,24 +106,42 @@ treats any deviation from the spec as a bug.
 
 [external protocols]: https://ghostty.org/docs/vt/external
 
-**Every theme gets its own casting.** A faithful compiler turns nearly identical
-palettes into nearly identical colors, so no amount of color work can separate
-them: with a fixed mapping, 152 of Ghostty's 819 themes read as a twin of another in
-code, and most of those differ only in their background. No terminal theme says
-which color is a keyword, so that is where themes can differ.
+**Identity comes from the palette, not from a fingerprint.** A faithful compiler
+turns nearly identical palettes into nearly identical colors, so separating such
+themes takes something other than color. The obvious candidate is which role each
+color plays, and for a while a fingerprint chose that. It worked by the numbers,
+taking themes with an identical twin from 152 to 0, but it measured the wrong thing:
+one invisible step of red in a background visibly recast 757 of 819 themes, and
+every family of themes split apart. A fingerprint knows nothing about a theme, so
+that was difference by noise.
 
-The arrangements are the even permutations of seven roles. That is 2,520 of them,
-and any two are at least three roles apart by construction: differing in exactly
-two would be a single swap, which is odd. Every one is scored against the theme,
-first for syntax roles that would look alike and then for keywords, functions and
-types sharing a hue, and the fingerprint chooses among the best.
+So roles follow the ANSI convention, the closest thing a terminal theme has to its
+author's intent, and move only for readability. Forcing difference survives as the
+opt-in `force_unique`. The arrangements are the even permutations of seven roles:
+2,520, any two at least three roles apart by construction, because differing in
+exactly two would be a single swap, which is odd. The list is only built when a
+theme needs it.
 
-This did not have to be a tradeoff. Picking by fingerprint alone gave 8 twins and
-put one hue on two leading roles in 180 themes, against 49 with the fixed mapping.
-Scoring gives 0 twins, 4 themes within two roles of another, and 11 hue clashes, 9
-of which have no clean choice in the palette at all. It costs 0.1ms more per
-compile, for 0.2ms in all, and 1.3ms when the plugin loads. Editing one color of a
-theme can still reshuffle its casting.
+The promise is two-sided, and both sides are tests: a difference you can see must
+show, and a difference you cannot see must not. Twins are not a failure when two
+themes have the same colors. Most of Ghostty's 152 do, and differ in their background.
+Terminal themes cannot say which color is a keyword, so an author's own mapping is
+out of reach: TokyoNight's Neovim theme uses an orange for constants that is not in
+its ANSI colors at all.
+
+**Text is judged against what is behind it.** Every color is made readable on the
+background, and most of the editor is not the background. A group that sets both its
+text and its fill can simply be made to read: colored text is lifted against the float
+it sits on, and `Search` and `DiffText` take whichever of fg or bg reads better, which
+on a mid-tone theme is not always fg. Selections and whole-line diffs cannot, because
+they lie under whatever syntax is there. So they ease off instead, until text reaches
+2.5:1 and comments 2.25:1, and stop while they can still be seen: a selection you
+cannot find is worse than one that is hard to read through. The floor is contrast with
+the background and not a percentage, because the same percentage is a different
+strength on every theme. `DiffText` sets its own text for a different reason. No
+strength that still marks the changed words leaves a comment readable, and the
+words are short and meant to stand out, so giving up their syntax color is the better
+trade. Borders and separators are lines, not text, and are exempt.
 
 **The saved theme doubles as a signal.** This idea is from `tinted-osc-colors.nvim`.
 One Neovim noticing a change is enough for all of them to check, and because the

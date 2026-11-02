@@ -40,7 +40,7 @@ end
 --- A complete colorscheme, needing nothing else installed.
 function M.source(colorscheme, name)
   return table.concat({
-    "-- Compiled by color-rex.lua. Standalone: it needs no plugin to load.",
+    "-- Compiled by colorrex.nvim. Standalone: it needs no plugin to load.",
     "local groups = " .. value_text(colorscheme.groups, ""),
     "local ansi = " .. value_text(colorscheme.filled.ansi, ""),
     "",
