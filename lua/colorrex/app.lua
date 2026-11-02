@@ -334,6 +334,7 @@ function App:status()
     accent = colorscheme.roles.accent.hex,
     id = colorscheme.id,
     casting = colorscheme.casting,
+    voice = colorscheme.voice,
     adjustments = #colorscheme.notes,
     last = self.last,
     auto = self.config.auto,

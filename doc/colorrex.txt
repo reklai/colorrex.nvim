@@ -65,11 +65,13 @@ contrast        Minimum contrast for code against the background, from 1 to
                 4.5. Colors below it move in lightness only. Text that a group
                 paints on its own fill, such as in a float, meets it too.
 
-force_unique    Make nearly identical themes look different, by letting a
-                fingerprint choose which color plays each role. No color
-                changes, but a change too small to see can recast a theme, and
-                themes meant as a set come apart. When false, roles follow the
-                ANSI convention and move only to keep code readable.
+force_unique    Give each theme its own voice. A cursor with a color of its
+                own decides which of six arrangements the theme uses, and that
+                color takes the keywords. Colors stay the theme's and themes
+                meant as a set stay together, but themes with nearly identical
+                palettes and cursors stay alike, and a theme with a look of its
+                own elsewhere will lose it. When false, roles follow the ANSI
+                convention and move only to keep code readable.
 
 auto            Also sync on focus and on dark or light changes, and when
                 another Neovim on this machine saves a new theme. When false,

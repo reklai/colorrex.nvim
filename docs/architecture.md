@@ -74,6 +74,7 @@ Use these words, in code and in prose.
 | fingerprint | A number computed from a theme. The id is its short form. |
 | arrangement | One assignment of colors to roles. |
 | casting | The arrangement a theme uses, by number. 1 is the ANSI convention. |
+| voice | One of six named arrangements. `force_unique` picks one by the cursor's hue. |
 | group spec | A highlight group written in roles. |
 | colorscheme | The compiler's output, everything needed to paint. |
 | query | One request to the terminal. `terminal.query()` starts one. |
@@ -116,11 +117,20 @@ every family of themes split apart. A fingerprint knows nothing about a theme, s
 that was difference by noise.
 
 So roles follow the ANSI convention, the closest thing a terminal theme has to its
-author's intent, and move only for readability. Forcing difference survives as the
-opt-in `force_unique`. The arrangements are the even permutations of seven roles:
-2,520, any two at least three roles apart by construction, because differing in
-exactly two would be a single swap, which is odd. The list is only built when a
-theme needs it.
+author's intent, and move only for readability. The arrangements for that are the
+even permutations of seven roles: 2,520, any two at least three roles apart by
+construction, because differing in exactly two would be a single swap, which is odd.
+The list is only built when a theme needs it.
+
+**`force_unique` is a voice, not a hash.** Recognizable themes make one strong
+decision, and most Rex themes have already made one: they gave the cursor a color of
+its own. So the opt-in picks one of six named arrangements by the cursor's hue. It
+keeps most of what made the fingerprint fail: an invisible change almost never
+recasts a theme, and families stay together. The cost is that near-clones with matching
+cursors stay alike. No rule can both respond smoothly and split palettes that are
+nearly identical, so those differ in the accent and not in the code. The cursor does
+not reveal what an author meant, and this rule does not claim to. Where a row would
+cost a role its readability, the theme keeps the convention.
 
 The promise is two-sided, and both sides are tests: a difference you can see must
 show, and a difference you cannot see must not. Twins are not a failure when two

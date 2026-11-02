@@ -62,6 +62,7 @@ local HARD = {
 
 -- Lowered by hand as the compiler improves. Raising one means it got worse.
 local CLASH_LIMIT, RECAST_LIMIT, FADED_LIMIT, TWIN_LIMIT = 11, 47, 21, 35
+local VOICE_RECAST_LIMIT, VOICED_FLOOR = 18, 260
 
 local function verify(name, theme)
   local colorscheme = Compiler.compile(theme, OPTS)
@@ -273,17 +274,19 @@ T.test("unique: types and numbers do not share a hue", function()
   T.ok(twins <= TWIN_LIMIT, ("%d themes"):format(twins))
 end)
 
+local FAMILIES = {
+  { "Everforest Dark Hard", "Everforest Dark Med" }, { "Everforest Dark Med", "Everforest Dark Soft" },
+  { "Gruvbox Dark", "Gruvbox Dark Hard" }, { "Kanso Ink", "Kanso Zen" }, { "Noctis", "Noctis Obscuro" },
+  { "Dark+", "Dark Modern" }, { "Modus Vivendi", "Modus Vivendi Tinted" },
+}
+
 T.test("identity: a theme family stays a family", function()
   local themes = corpus()
   if next(themes) == nil then
     T.skip("no theme corpus at " .. CORPUS)
   end
   local Color = require("colorrex.color")
-  for _, pair in ipairs({
-    { "Everforest Dark Hard", "Everforest Dark Med" }, { "Everforest Dark Med", "Everforest Dark Soft" },
-    { "Gruvbox Dark", "Gruvbox Dark Hard" }, { "Kanso Ink", "Kanso Zen" }, { "Noctis", "Noctis Obscuro" },
-    { "Dark+", "Dark Modern" }, { "Modus Vivendi", "Modus Vivendi Tinted" },
-  }) do
+  for _, pair in ipairs(FAMILIES) do
     local a = role_colors(Compiler.compile(themes[pair[1]], OPTS))
     local b = role_colors(Compiler.compile(themes[pair[2]], OPTS))
     T.ok(roles_apart(a, b, Color, Color.DISTINCT) <= 1, pair[1] .. " and " .. pair[2] .. " came apart")
@@ -330,28 +333,67 @@ T.test("identity: themes that read alike really do share their colors", function
   T.eq(hidden, 0)
 end)
 
-T.test("force_unique: separates even themes that share their colors", function()
+T.test("voice: a nudge to the cursor rarely changes how code reads", function()
   local themes = corpus()
   if next(themes) == nil then
     T.skip("no theme corpus at " .. CORPUS)
   end
   local Color = require("colorrex.color")
-  local list = {}
-  for name, theme in pairs(themes) do
-    local colorscheme = Compiler.compile(theme, FORCED)
-    list[#list + 1] = { name = name, signature = colorscheme.signature, colors = role_colors(colorscheme) }
-  end
-  local twins = 0
-  for i = 1, #list do
-    for j = i + 1, #list do
-      if list[i].signature ~= list[j].signature
-        and roles_apart(list[i].colors, list[j].colors, Color, Color.DISTINCT) == 0 then
-        twins = twins + 1
+  local recast = 0
+  for _, theme in pairs(themes) do
+    local before = role_colors(Compiler.compile(theme, FORCED))
+    local moved = false
+    local function nudged(change)
+      local after = role_colors(Compiler.compile(edited(theme, change), FORCED))
+      moved = moved or roles_apart(before, after, Color, Color.DISTINCT) >= 3
+    end
+    for _, field in ipairs({ "bg", "fg", "cursor" }) do
+      if theme[field] then
+        nudged(function(copy)
+          copy[field] = one_step(one_step(copy[field]))
+        end)
       end
     end
+    for slot = 1, 6 do
+      nudged(function(copy)
+        copy.ansi[slot] = one_step(one_step(copy.ansi[slot]))
+      end)
+    end
+    recast = recast + (moved and 1 or 0)
   end
-  print(("  force_unique: %d pairs of %d themes read alike"):format(twins, #list))
-  T.eq(twins, 0)
+  print(("  voice: %d themes recast by a nudge"):format(recast))
+  T.ok(recast <= VOICE_RECAST_LIMIT, ("%d themes"):format(recast))
+end)
+
+T.test("voice: a theme family stays a family", function()
+  local themes = corpus()
+  if next(themes) == nil then
+    T.skip("no theme corpus at " .. CORPUS)
+  end
+  local Color = require("colorrex.color")
+  for _, pair in ipairs(FAMILIES) do
+    local a = role_colors(Compiler.compile(themes[pair[1]], FORCED))
+    local b = role_colors(Compiler.compile(themes[pair[2]], FORCED))
+    T.ok(roles_apart(a, b, Color, Color.DISTINCT) <= 1, pair[1] .. " and " .. pair[2] .. " came apart")
+  end
+end)
+
+T.test("voice: most themes with a colored cursor speak in it", function()
+  local themes = corpus()
+  if next(themes) == nil then
+    T.skip("no theme corpus at " .. CORPUS)
+  end
+  local voiced, total = 0, 0
+  for _, theme in pairs(themes) do
+    local colorscheme = Compiler.compile(theme, FORCED)
+    if colorscheme.voice then
+      voiced = voiced + 1
+      T.ok(colorscheme.voice == "magenta" or colorscheme.casting == 1, "a voice is not recast too")
+    end
+    total = total + 1
+  end
+  print(("  voice: %d of %d themes"):format(voiced, total))
+  T.ok(voiced >= VOICED_FLOOR, ("%d themes"):format(voiced))
 end)
 
 T.test("readable: the leading roles do not share one hue", function()
@@ -425,20 +467,14 @@ T.test("standalone: groups are written in sorted order, so a theme writes one fi
   T.ok(#previous > 0, "found no groups to compare")
 end)
 
-T.test("casting: moves colors between roles and changes no color", function()
+T.test("voice: leaves the base, the comment and the accent where they were", function()
   local themes = corpus()
   themes.one_light, themes.solarized_light = HARD.one_light, HARD.solarized_light
   for name, theme in pairs(themes) do
     local forced, plain = Compiler.compile(theme, FORCED), Compiler.compile(theme, OPTS)
-    local a, b = {}, {}
-    for _, role in ipairs(require("colorrex.roles.casting").ROLES) do
-      a[#a + 1], b[#b + 1] = forced.roles[role].hex, plain.roles[role].hex
+    for _, role in ipairs({ "base", "fg", "comment", "accent", "error", "warn", "ok", "info", "hint" }) do
+      T.eq(forced.roles[role].hex, plain.roles[role].hex, name .. " " .. role)
     end
-    table.sort(a)
-    table.sort(b)
-    T.eq(table.concat(a), table.concat(b), name)
-    T.eq(forced.roles.string.hex, plain.roles.string.hex, name .. " string")
-    T.eq(forced.roles.comment.hex, plain.roles.comment.hex, name .. " comment")
   end
 end)
 

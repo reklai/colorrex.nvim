@@ -125,6 +125,12 @@ local function chromatic(theme, slot)
   return Color.chroma(theme.ansi[slot]) >= M.MIN_CHROMA
 end
 
+--- Whether the cursor is a color the theme chose. Half of all themes leave it as fg.
+function M.own_cursor(theme)
+  local cursor = theme.cursor
+  return cursor ~= nil and Color.chroma(cursor) >= M.MIN_CHROMA and Color.distance(cursor, theme.fg) >= Color.DISTINCT
+end
+
 --- A slot's color, made readable. `from` records the original if it had to move.
 local function from_slot(theme, slot, floor)
   local source = theme.ansi[slot]
@@ -278,6 +284,31 @@ local function pick_syntax(theme, floor, notes)
   return picks
 end
 
+--- The syntax colors in the theme's own voice, and the voice. Nothing when the cursor
+--- is not a color of its own, or when the row would cost the theme a readable role:
+--- then the theme keeps the convention, which never does.
+local function voiced_syntax(theme, floor)
+  if not M.own_cursor(theme) or Color.chroma(theme.cursor) < Color.HUE_MIN_CHROMA then
+    return nil
+  end
+  local voice = Casting.voice(theme.cursor, theme.ansi)
+  if not voice then
+    return nil
+  end
+  local picks = {}
+  for _, role in ipairs(M.SYNTAX) do
+    local slot = voice.roles[role.name]
+    if not chromatic(theme, slot) then
+      return nil
+    end
+    picks[role.name] = from_slot(theme, slot, floor)
+  end
+  if closest(picks) < Color.DISTINCT or Casting.leads_clash(picks) then
+    return nil
+  end
+  return picks, voice
+end
+
 --- Numbers are constants, and authored colorschemes paint them alike. Left on bright
 --- yellow they sit beside `type` in one hue, which reads as one color however far apart
 --- two lightnesses measure. This follows every repair so it can never cost another role
@@ -386,8 +417,8 @@ end
 --- The accent: the one color a theme chose that is not in its ANSI table. When the
 --- cursor is not a color of its own (half of all themes), a palette color stands in.
 local function accent_role(theme, roles, floor, notes)
-  local cursor = theme.cursor
-  if cursor and Color.chroma(cursor) >= M.MIN_CHROMA and Color.distance(cursor, theme.fg) >= Color.DISTINCT then
+  if M.own_cursor(theme) then
+    local cursor = theme.cursor
     local hex = Color.lift(cursor, theme.bg, floor)
     return { hex = hex, source = "cursor", from = hex ~= cursor and cursor or nil }
   end
@@ -398,23 +429,35 @@ local function accent_role(theme, roles, floor, notes)
   return chromatic(theme, 13) and from_slot(theme, 13, floor) or roles.func
 end
 
---- Solve a filled theme. `fingerprint` is what casts it.
+--- Solve a filled theme.
 ---   roles[name] = { hex, source, from? }; styles[syntax role] = { bold?, ... }
-function M.solve(theme, opts, fingerprint)
+function M.solve(theme, opts)
   local floor, notes = opts.contrast, {}
   local bg, fg = theme.bg, theme.fg
 
-  local roles = pick_syntax(theme, floor, notes)
+  local voiced, voice
+  if opts.force_unique then
+    voiced, voice = voiced_syntax(theme, floor)
+  end
+  local roles = voiced or pick_syntax(theme, floor, notes)
   for _, role in ipairs(M.SECONDARY) do
     roles[role.name] = from_slot(theme, natural_slot(theme, role.slots), floor)
   end
-  number_as_constant(theme, roles, floor)
-  local casting = Casting.cast(roles, roles.string.hex, opts.force_unique and fingerprint or nil)
-  if casting ~= Casting.CONVENTION and not opts.force_unique then
+  local casting = Casting.CONVENTION
+  if voice then
     notes[#notes + 1] = {
-      code = "faithful.recast",
-      message = "roles moved off the ANSI convention, which would have read as one color",
+      code = "unique.voice",
+      message = ("the cursor sits nearest ansi %d, so keywords lead in the %s voice"):format(voice.anchor, voice.name),
     }
+  else
+    number_as_constant(theme, roles, floor)
+    casting = Casting.cast(roles, roles.string.hex)
+    if casting ~= Casting.CONVENTION then
+      notes[#notes + 1] = {
+        code = "faithful.recast",
+        message = "roles moved off the ANSI convention, which would have read as one color",
+      }
+    end
   end
   local styles = assign_styles(roles, notes)
   for _, name in ipairs(Casting.ROLES) do
@@ -431,6 +474,9 @@ function M.solve(theme, opts, fingerprint)
   for _, role in ipairs(M.PALETTE) do
     roles[role.name] = from_slot(theme, natural_slot(theme, role.slots), floor)
     note_lift(notes, role.name, roles[role.name], bg)
+  end
+  if voice then
+    roles.constant = roles.number -- numbers are constants, in every voice
   end
 
   local surface_text = M.surface_text(roles, bg)
@@ -485,7 +531,7 @@ function M.solve(theme, opts, fingerprint)
     roles["on_" .. name] = { hex = on_bg and bg or fg, source = on_bg and "bg" or "fg" }
   end
 
-  return { roles = roles, styles = styles, notes = notes, casting = casting }
+  return { roles = roles, styles = styles, notes = notes, casting = casting, voice = voice and voice.name }
 end
 
 return M

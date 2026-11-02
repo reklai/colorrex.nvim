@@ -11,9 +11,9 @@ M.defaults = {
   -- Minimum contrast for code against the background. Up to 4.5, which every
   -- possible background can reach.
   contrast = 3.0,
-  -- Make nearly identical themes look different, by letting a fingerprint choose
-  -- which color plays each role. Off: roles follow the ANSI convention, so a theme's
-  -- colors decide how it reads, and themes with the same colors read the same.
+  -- Give each theme its own voice: its cursor color takes the keywords, and the other
+  -- roles follow one of six arrangements. Off: roles follow the ANSI convention, so a
+  -- theme's colors decide how it reads, and themes with the same colors read the same.
   force_unique = false,
   -- Also sync on focus and on dark/light notifications. These cost nothing
   -- while idle. Off: only :ColorRex changes colors after launch.

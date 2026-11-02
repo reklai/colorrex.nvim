@@ -41,7 +41,7 @@ function M.compile(theme, opts, background)
   local filled = Theme.fill(theme, background)
   local signature = Theme.signature(filled)
   local fingerprint = Roles.fingerprint(signature)
-  local solved = Roles.solve(filled, opts, fingerprint)
+  local solved = Roles.solve(filled, opts)
 
   local group_specs = Groups.build(opts, solved.styles)
   local groups = {}
@@ -62,6 +62,7 @@ function M.compile(theme, opts, background)
     -- What a person reads. Short enough to say out loud, so only nearly unique.
     id = ("%06x"):format(fingerprint % 0x1000000),
     casting = solved.casting,
+    voice = solved.voice,
     background = filled.background,
     completeness = Theme.completeness(theme),
     theme = theme,

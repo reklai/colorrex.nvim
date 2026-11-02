@@ -109,10 +109,12 @@ require("colorrex").setup({
 })
 ```
 
-With `force_unique = true`, nearly identical themes are made to look different, by
-letting a fingerprint choose which color plays each role. It separates themes by
-noise rather than by anything about them: one invisible step in a background recasts
-most themes, and themes meant as a set come apart.
+With `force_unique = true`, each theme speaks in its own voice. If the theme gave its
+cursor a color of its own, that color takes the keywords, and the other roles follow
+one of six arrangements modeled on themes people recognize. It is colorrex's own rule,
+not what the theme's author meant, so a theme with a known look elsewhere loses it.
+Themes whose palettes and cursors nearly match stay alike. `:ColorRex status` names
+the voice, and `:ColorRex check` says why it was chosen.
 
 ## How it works
 

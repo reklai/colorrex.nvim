@@ -101,28 +101,13 @@ end)
 
 T.test("casting: a role never takes the color of strings when it can avoid it", function()
   local Casting = require("colorrex.roles.casting")
-  for _, fingerprint in ipairs({ false, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }) do
-    local picks = {
-      keyword = { hex = "#3fb950" }, func = { hex = "#58a6ff" }, type = { hex = "#d29922" },
-      number = { hex = "#e06c75" }, operator = { hex = "#39c5cf" },
-      preproc = { hex = "#bc8cff" }, special = { hex = "#ffa198" },
-    }
-    Casting.cast(picks, "#3fb950", fingerprint or nil)
-    T.ok(picks.preproc.hex == "#3fb950" or picks.special.hex == "#3fb950", "it belongs on a role that need not be distinct")
-  end
-end)
-
-T.test("force_unique: reads as well as the convention, from any fingerprint", function()
-  local Casting = require("colorrex.roles.casting")
-  for fingerprint = 0, 200 do
-    local picks = {
-      keyword = { hex = "#bc8cff" }, func = { hex = "#58a6ff" }, type = { hex = "#d29922" },
-      number = { hex = "#e3b341" }, operator = { hex = "#39c5cf" },
-      preproc = { hex = "#d2a8ff" }, special = { hex = "#ffa198" },
-    }
-    Casting.cast(picks, "#3fb950", fingerprint)
-    T.ok(golds_on_leads(picks) <= 1, ("fingerprint %d put both golds on the leading roles"):format(fingerprint))
-  end
+  local picks = {
+    keyword = { hex = "#3fb950" }, func = { hex = "#58a6ff" }, type = { hex = "#d29922" },
+    number = { hex = "#e06c75" }, operator = { hex = "#39c5cf" },
+    preproc = { hex = "#bc8cff" }, special = { hex = "#ffa198" },
+  }
+  Casting.cast(picks, "#3fb950")
+  T.ok(picks.preproc.hex == "#3fb950" or picks.special.hex == "#3fb950", "it belongs on a role that need not be distinct")
 end)
 
 T.test("identity: a background tint alone gives a theme a new id", function()
@@ -139,31 +124,6 @@ T.test("identity: changing an option never changes a theme's id", function()
   T.eq(a.id, b.id)
 end)
 
-T.test("force_unique: only chooses between results that look different", function()
-  -- Three roles hold one color, so many arrangements differ only in which of them
-  -- went where. A fingerprint picking between those would not be picking anything.
-  local Casting = require("colorrex.roles.casting")
-  local colors = {
-    keyword = "#c678dd", func = "#61afef", type = "#e5c07b", number = "#e06c75",
-    operator = "#56b6c2", preproc = "#56b6c2", special = "#56b6c2",
-  }
-  local seen = {}
-  for fingerprint = 0, 199 do
-    local picks = {}
-    for role, hex in pairs(colors) do
-      picks[role] = { hex = hex }
-    end
-    local casting = Casting.cast(picks, "#98c379", fingerprint)
-    local result = {}
-    for index, role in ipairs(Casting.ROLES) do
-      result[index] = picks[role].hex
-    end
-    local key = table.concat(result)
-    T.ok(seen[key] == nil or seen[key] == casting, "two castings, one result")
-    seen[key] = casting
-  end
-end)
-
 T.test("casting: a background tint changes nothing in code, by default", function()
   local opts = Config.resolve()
   for _, bg in ipairs({ "#1b1f27", "#1c2028", "#30343c" }) do
@@ -175,11 +135,117 @@ T.test("casting: a background tint changes nothing in code, by default", functio
   end
 end)
 
-T.test("force_unique: the same tint recasts the theme", function()
-  local opts = Config.resolve({ force_unique = true })
-  local one = Compiler.compile(F.theme({ bg = "#1b1f27" }), opts)
-  local two = Compiler.compile(F.theme({ bg = "#1c2028" }), opts)
-  T.ok(one.casting ~= two.casting)
+local VOICED = Config.resolve({ force_unique = true })
+
+T.test("voice: a tint in the background leaves it alone", function()
+  local one = Compiler.compile(F.theme({ bg = "#1b1f27" }), VOICED)
+  local two = Compiler.compile(F.theme({ bg = "#1c2028" }), VOICED)
+  T.eq(one.voice, two.voice)
+  T.eq(one.roles.keyword.source, two.roles.keyword.source)
+end)
+
+T.test("voice: the cursor's nearest color takes the keywords", function()
+  local ansi = F.theme().ansi
+  for cursor, voice in pairs({
+    [ansi[5]] = "magenta", [ansi[1]] = "red", [ansi[4]] = "blue",
+    [ansi[2]] = "green", [ansi[3]] = "yellow", [ansi[6]] = "cyan",
+  }) do
+    local compiled = Compiler.compile(F.theme({ cursor = cursor }), VOICED)
+    T.eq(compiled.voice, voice)
+    T.eq(compiled.roles.keyword.hex, cursor)
+  end
+end)
+
+T.test("voice: every row gives each role its own color", function()
+  local Casting = require("colorrex.roles.casting")
+  T.eq(#Casting.VOICES, 6)
+  for _, voice in ipairs(Casting.VOICES) do
+    T.eq(voice.roles.keyword, voice.anchor)
+    local seen = {}
+    for role, slot in pairs(voice.roles) do
+      T.ok(not seen[slot], voice.name .. " uses a slot twice, on " .. role)
+      seen[slot] = true
+    end
+  end
+end)
+
+T.test("voice: the magenta row is the convention, so that voice changes nothing", function()
+  local theme = F.theme({ cursor = F.theme().ansi[5] })
+  local voiced = Compiler.compile(theme, VOICED).roles
+  local plain = Compiler.compile(theme, Config.resolve()).roles
+  for _, role in ipairs({ "keyword", "func", "string", "type", "number", "operator" }) do
+    T.eq(voiced[role].hex, plain[role].hex, role)
+  end
+end)
+
+T.test("voice: a cursor that is not a color of its own leaves the convention", function()
+  local theme = F.theme()
+  for _, cursor in ipairs({ theme.fg, "#808080" }) do
+    T.eq(Compiler.compile(F.theme({ cursor = cursor }), VOICED).voice, nil)
+  end
+  T.eq(Compiler.compile(F.theme({ cursor = false }), VOICED).voice, nil)
+end)
+
+T.test("voice: a row that would collapse two roles gives way to the convention", function()
+  local ansi = F.theme().ansi
+  ansi[6], ansi[1] = ansi[3], ansi[1] -- the red row puts cyan on types and yellow on strings
+  local compiled = Compiler.compile(F.theme({ cursor = ansi[1], ansi = ansi }), VOICED)
+  T.eq(compiled.voice, nil)
+end)
+
+T.test("voice: a row that would put two leading roles in one hue gives way too", function()
+  local Color = require("colorrex.color")
+  local ansi = F.theme().ansi
+  ansi[2] = "#ffb0b4" -- apart from red, but the red row would put keywords and functions in one hue
+  T.ok(Color.distance(ansi[1], ansi[2]) >= Color.DISTINCT)
+  local compiled = Compiler.compile(F.theme({ cursor = ansi[1], ansi = ansi }), VOICED)
+  T.eq(compiled.voice, nil)
+end)
+
+T.test("voice: a row that needs a grey gives way too", function()
+  local ansi = F.theme().ansi
+  ansi[6] = "#808080" -- the red row puts cyan on types
+  local compiled = Compiler.compile(F.theme({ cursor = ansi[1], ansi = ansi }), VOICED)
+  T.eq(compiled.voice, nil)
+end)
+
+T.test("voice: a cursor too faint to have a hue is not a voice", function()
+  local Color = require("colorrex.color")
+  local Roles = require("colorrex.roles")
+  local theme = F.theme({ cursor = "#a08070" })
+  T.ok(Roles.own_cursor(theme), "it passes for a color of its own")
+  T.ok(Color.chroma(theme.cursor) < Color.HUE_MIN_CHROMA, "but its hue is rounding noise")
+  T.eq(Compiler.compile(theme, VOICED).voice, nil)
+end)
+
+T.test("voice: constants stay with numbers, in every voice", function()
+  local compiled = Compiler.compile(F.theme({ cursor = F.theme().ansi[1] }), VOICED)
+  T.eq(compiled.roles.number.slot, 5)
+  T.eq(compiled.roles.constant.hex, compiled.roles.number.hex)
+  T.eq(compiled.groups.Constant.fg, compiled.roles.number.hex)
+end)
+
+T.test("voice: says why, and leaves the comment and the accent alone", function()
+  local theme = F.theme({ cursor = F.theme().ansi[4] })
+  local voiced, plain = Compiler.compile(theme, VOICED), Compiler.compile(theme, Config.resolve())
+  T.eq(voiced.roles.comment.hex, plain.roles.comment.hex)
+  T.eq(voiced.roles.accent.hex, plain.roles.accent.hex)
+  local said
+  for _, note in ipairs(voiced.notes) do
+    said = said or (note.code == "unique.voice" and note.message)
+  end
+  T.ok(said and said:find("ansi 4", 1, true) and said:find("blue voice", 1, true), tostring(said))
+end)
+
+T.test("voice: the status names it", function()
+  local Report = require("colorrex.report")
+  local status = {
+    background = "dark", source = "terminal", completeness = "full", id = "abc123", casting = 1, voice = "red",
+    fg = "#ffffff", bg = "#000000", accent = "#ff0000", last = {}, auto = true, adjustments = 0,
+  }
+  T.ok(Report.status(status):find("abc123, red voice", 1, true))
+  status.voice = nil
+  T.ok(Report.status(status):find("abc123, casting 1", 1, true))
 end)
 
 T.test("roles: red reaches code, as constants", function()

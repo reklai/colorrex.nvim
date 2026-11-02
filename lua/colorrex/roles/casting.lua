@@ -13,10 +13,12 @@
 -- a family. Colors are never changed, only moved between roles, and strings and
 -- comments stay where they are.
 --
--- force_unique is the exception, and asks for the opposite: a fingerprint of the
--- theme picks among the arrangements that read well, so that nearly identical themes
--- look different. A fingerprint knows nothing about a theme, so this separates them
--- by noise, and a change of one step in a background recasts most themes.
+-- force_unique asks for more: that a theme speak in its own voice. A theme that gave
+-- its cursor a color of its own made one decision the convention ignores, so that
+-- color takes the keywords, and the rest follows one of six arrangements modeled on
+-- themes people recognize. This is colorrex's own rule, not what the author meant:
+-- terminal themes do not say that. Rules that respond smoothly cannot split palettes
+-- that are nearly identical, so those stay alike, and differ in the accent instead.
 local Color = require("colorrex.color")
 
 local M = {}
@@ -24,6 +26,19 @@ local M = {}
 M.ROLES = { "keyword", "func", "type", "number", "operator", "preproc", "special" } -- the roles that move
 M.CONVENTION = 1 -- the arrangement that moves nothing
 M.SAME_HUE = 25 -- degrees apart, below which two colors read as one family
+
+-- The six voices, in slots. `anchor` is the color a cursor has to sit nearest. Blue
+-- leans on Nord, green on Solarized, cyan on Rose Pine, red on Monokai and Gruvbox, and
+-- magenta is the convention. Yellow has no precedent. With red left to errors wherever
+-- a row can spare it, operators take their keyword's bright partner.
+M.VOICES = {
+  { name = "magenta", anchor = 5, roles = { keyword = 5, func = 4, string = 2, type = 3, number = 1, operator = 6 } },
+  { name = "red", anchor = 1, roles = { keyword = 1, func = 2, string = 3, type = 6, number = 5, operator = 4 } },
+  { name = "blue", anchor = 4, roles = { keyword = 4, func = 6, string = 2, type = 3, number = 5, operator = 12 } },
+  { name = "green", anchor = 2, roles = { keyword = 2, func = 4, string = 6, type = 3, number = 5, operator = 10 } },
+  { name = "yellow", anchor = 3, roles = { keyword = 3, func = 4, string = 2, type = 6, number = 5, operator = 11 } },
+  { name = "cyan", anchor = 6, roles = { keyword = 6, func = 5, string = 3, type = 4, number = 2, operator = 14 } },
+}
 
 local LEADS = 3 -- the first three of ROLES are read side by side
 local KEPT_DISTINCT = 5 -- the first five of ROLES must stay distinct; see Roles.SYNTAX
@@ -103,6 +118,34 @@ local function same_hue(x, y)
     and Color.hue_gap(x, y) < M.SAME_HUE
 end
 
+--- Whether any two leading roles share a hue.
+function M.leads_clash(picks)
+  for i = 1, LEADS do
+    for j = i + 1, LEADS do
+      if same_hue(picks[M.ROLES[i]].hex, picks[M.ROLES[j]].hex) then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+--- The voice whose anchor sits nearest `cursor` in hue. A palette without a usable
+--- color at an anchor has no such voice, and one with no colors at all has none.
+function M.voice(cursor, ansi)
+  local best, nearest = nil, math.huge
+  for _, voice in ipairs(M.VOICES) do
+    local anchor = ansi[voice.anchor]
+    if Color.chroma(anchor) >= Color.HUE_MIN_CHROMA then
+      local gap = Color.hue_gap(cursor, anchor)
+      if gap < nearest then
+        best, nearest = voice, gap
+      end
+    end
+  end
+  return best
+end
+
 --- For each pair of colors, whether the eye would confuse them.
 local function comparisons(colors, fixed)
   local family, alike, alike_fixed = {}, {}, {}
@@ -165,41 +208,18 @@ local function best_arrangements(family, alike, alike_fixed)
   return best
 end
 
---- One arrangement per result. When two roles hold the same color, arrangements that
---- only trade them look identical, and a fingerprint choosing between those would not
---- be choosing anything.
-local function distinct_results(arrangement_numbers, colors)
-  local seen, out = {}, {}
-  for _, number in ipairs(arrangement_numbers) do
-    local result = {}
-    for role, source in ipairs(M.arrangements()[number]) do
-      result[role] = colors[source]
-    end
-    local key = table.concat(result)
-    if not seen[key] then
-      seen[key] = true
-      out[#out + 1] = number
-    end
-  end
-  return out
-end
-
 --- The number of the arrangement for these colors: the one closest to the convention
---- among those that read best, or with a fingerprint, the one it picks.
-local function choose(colors, fixed, fingerprint)
+--- among those that read best.
+local function choose(colors, fixed)
   local family, alike, alike_fixed = comparisons(colors, fixed)
   local convention = { unpack(M.ROLES) }
   for index = 1, #convention do
     convention[index] = index
   end
-  if not fingerprint and cost(convention, family, alike, alike_fixed) == 0 then
+  if cost(convention, family, alike, alike_fixed) == 0 then
     return M.CONVENTION
   end
   local best = best_arrangements(family, alike, alike_fixed)
-  if fingerprint then
-    local results = distinct_results(best, colors)
-    return results[fingerprint % #results + 1]
-  end
   local closest, fewest = nil, math.huge
   for _, index in ipairs(best) do
     local moved = roles_moved(M.arrangements()[index])
@@ -212,12 +232,12 @@ end
 
 --- Move `picks` between ROLES. `fixed` is a color that does not move and must stay
 --- distinct from them. Returns the number of the arrangement used.
-function M.cast(picks, fixed, fingerprint)
+function M.cast(picks, fixed)
   local before, colors = {}, {}
   for index, role in ipairs(M.ROLES) do
     before[index], colors[index] = picks[role], picks[role].hex
   end
-  local casting = choose(colors, fixed, fingerprint)
+  local casting = choose(colors, fixed)
   if casting ~= M.CONVENTION then
     local arrangement = M.arrangements()[casting]
     for index, role in ipairs(M.ROLES) do

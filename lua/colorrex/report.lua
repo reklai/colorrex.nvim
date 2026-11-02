@@ -10,7 +10,8 @@ function M.status(status)
     or ("%s: %s (%s)"):format(last.reason, last.completeness, last.outcome)
   return table.concat({
     ("theme     %s, from %s (%s)"):format(status.background, status.source, status.completeness),
-    ("id        %s, casting %d"):format(status.id, status.casting),
+    ("id        %s, %s"):format(status.id,
+      status.voice and ("%s voice"):format(status.voice) or ("casting %d"):format(status.casting)),
     ("colors    fg %s  bg %s  accent %s"):format(status.fg, status.bg, status.accent),
     ("last sync %s"):format(summary),
     ("auto      %s"):format(status.auto and "on (focus and dark/light changes)" or "off (:ColorRex only)"),
