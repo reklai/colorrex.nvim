@@ -9,7 +9,8 @@
 --   4. Two roles that would look the same: the lesser one moves along its own slots,
 --      else to the nearest color that stands apart. A repair changes all it must and
 --      nothing else.
---   5. Colors stay on their ANSI convention unless that would hurt readability.
+--   5. Colors stay on their ANSI convention unless the theme's voice or readability
+--      says otherwise.
 --   6. Roles the palette cannot separate differ by weight or slant instead.
 --   7. A surface that text sits on gives way until the text is readable, and stops
 --      while it can still be seen. Text in a float is lifted against the float.
@@ -99,6 +100,9 @@ local ON_FLOAT = { "accent", "error", "warn", "info", "hint", "ok" }
 local FILLS = { "accent", "error", "warn", "ok", "keyword", "search", "diff_text" }
 
 local POOL = { 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14 } -- the chromatic slots
+
+local PROPERTY_SLOTS = { 14, 13, 12, 10, 11 } -- bright, because no leading role starts there
+local PROPERTY_FROM_FG = 0.06 -- nearer than this, a field reads as plain text
 
 -- One style for each syntax role, so a free one always exists. Keywords start
 -- italic, which is why the plain style can still go to whichever role comes next.
@@ -284,6 +288,28 @@ local function pick_syntax(theme, floor, notes)
   return picks
 end
 
+--- The color of fields and properties, so `req.Body` shows which part is the object and
+--- `req.Close()` shows which part is a field and which a method. It can only be a color
+--- no role read beside it has: the first bright slot off the hues of keywords, functions
+--- and types, and far enough from fg to be seen as a color at all. It comes after casting
+--- because that decides which hues those are. With none left, it stays fg.
+local function property_role(theme, roles, floor)
+  for _, slot in ipairs(PROPERTY_SLOTS) do
+    if chromatic(theme, slot) then
+      local option = from_slot(theme, slot, floor)
+      local clashes = Color.distance(option.hex, theme.fg) < PROPERTY_FROM_FG
+      for _, name in ipairs({ "keyword", "func", "type" }) do
+        clashes = clashes or Casting.same_hue(option.hex, roles[name].hex)
+          or Color.distance(option.hex, roles[name].hex) < Color.DISTINCT
+      end
+      if not clashes then
+        return option
+      end
+    end
+  end
+  return { hex = theme.fg, source = "fg" }
+end
+
 --- The syntax colors in the theme's own voice, and the voice. Nothing when the cursor
 --- is not a color of its own, or when the row would cost the theme a readable role:
 --- then the theme keeps the convention, which never does.
@@ -303,7 +329,7 @@ local function voiced_syntax(theme, floor)
     end
     picks[role.name] = from_slot(theme, slot, floor)
   end
-  if closest(picks) < Color.DISTINCT or Casting.leads_clash(picks) then
+  if closest(picks) < Color.DISTINCT or Casting.blurs(picks) then
     return nil
   end
   return picks, voice
@@ -362,6 +388,7 @@ function M.surface_text(roles, bg)
   for _, role in ipairs(M.SYNTAX) do
     add(role.name, M.ON_SURFACE.text)
   end
+  add("property", M.ON_SURFACE.text)
   add("comment", M.ON_SURFACE.comment)
   return text
 end
@@ -448,7 +475,7 @@ function M.solve(theme, opts)
   local bg, fg = theme.bg, theme.fg
 
   local voiced, voice
-  if opts.force_unique then
+  if opts.voice then
     voiced, voice = voiced_syntax(theme, floor)
   end
   local roles = voiced or pick_syntax(theme, floor, notes)
@@ -471,6 +498,7 @@ function M.solve(theme, opts)
       }
     end
   end
+  roles.property = property_role(theme, roles, floor)
   local styles = assign_styles(roles, notes)
   for _, name in ipairs(Casting.ROLES) do
     note_lift(notes, name, roles[name], bg)

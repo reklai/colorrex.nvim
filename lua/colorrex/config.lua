@@ -11,10 +11,10 @@ M.defaults = {
   -- Minimum contrast for code against the background. Up to 4.5, which every
   -- possible background can reach.
   contrast = 3.0,
-  -- Give each theme its own voice: its cursor color takes the keywords, and the other
-  -- roles follow one of six arrangements. Off: roles follow the ANSI convention, so a
-  -- theme's colors decide how it reads, and themes with the same colors read the same.
-  force_unique = false,
+  -- Give each theme its own voice: a cursor with a color of its own takes the keywords,
+  -- and the other roles follow one of six arrangements. Off: roles always follow the
+  -- ANSI convention, and themes with the same colors read the same.
+  voice = true,
   -- Mark where each chunk of code starts: the name on its first line stands out, so
   -- a file can be scanned by its shape. Needs Treesitter highlighting in the buffer.
   chunks = false,

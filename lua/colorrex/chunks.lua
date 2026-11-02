@@ -18,14 +18,23 @@ M.MAX_DEPTH = 1
 
 local NAMES = { "name", "key", "function" } -- the fields grammars keep a name in
 
+--- `node`, if it fits on `row`.
+local function on_row(node, row)
+  local start_row, _, end_row = node:range()
+  return start_row == row and end_row == row and node or nil
+end
+
 --- What this node names, if it names anything on `row`.
 local function name_of(node, row)
   for _, field in ipairs(NAMES) do
     local found = node:field(field)[1]
     if found then
-      local start_row, _, end_row = found:range()
-      return start_row == row and end_row == row and found or nil
+      return on_row(found, row)
     end
+  end
+  local declarator = node:field("declarator")[1] -- C and C++ nest the name in these
+  if declarator then
+    return declarator:field("declarator")[1] and name_of(declarator, row) or on_row(declarator, row)
   end
   if node:field("condition")[1] then
     return nil -- control flow is the shape inside a chunk, not a chunk of its own
@@ -62,7 +71,8 @@ function M.landmarks(root, first, last, line)
     for child in node:iter_children() do
       local child_start, _, child_end = child:range()
       if child_end >= first and child_start <= last then
-        walk(child, here, depth + (is_chunk and 1 or 0), own_body)
+        -- A body starts where its first statement does, and that is not a repeat.
+        walk(child, node == body and opened_at or here, depth + (is_chunk and 1 or 0), own_body)
       end
     end
   end

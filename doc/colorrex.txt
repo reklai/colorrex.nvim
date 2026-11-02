@@ -54,7 +54,7 @@ also turns the colorscheme on.
     require("colorrex").setup({
       transparent = true,
       contrast = 3.0,
-      force_unique = false,
+      voice = true,
       auto = true,
     })
 <
@@ -65,12 +65,13 @@ contrast        Minimum contrast for code against the background, from 1 to
                 4.5. Colors below it move in lightness only. Text that a group
                 paints on its own fill, such as in a float, meets it too.
 
-force_unique    Give each theme its own voice. A cursor with a color of its
+voice           Give each theme its own voice. A cursor with a color of its
                 own decides which of six arrangements the theme uses, and that
                 color takes the keywords. Colors stay the theme's and themes
                 meant as a set stay together, but themes with nearly identical
-                palettes and cursors stay alike, and a theme with a look of its
-                own elsewhere will lose it. When false, roles follow the ANSI
+                palettes and cursors stay alike. A theme whose cursor is not a
+                color of its own is unchanged, which is most themes with a look
+                known from elsewhere. When false, roles always follow the ANSI
                 convention and move only to keep code readable.
 
 chunks          Mark where each chunk of code starts. The name on its first

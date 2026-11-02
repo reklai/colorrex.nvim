@@ -133,6 +133,31 @@ T.test("chunks: a body does not use up a level", function()
   T.ok(marks(root(fn), 0, 100, { [3] = 2, [4] = 2 })[4], "a function inside a function is one level in")
 end)
 
+T.test("chunks: the first thing in a body is still a chunk", function()
+  -- In Python a class body starts exactly where its first method does, so the method
+  -- looks like the same node twice over.
+  local method = definition(1, 6, 2)
+  local body = node({ 1, 2, 9, 5, children = { method } })
+  local class = node({ 0, 0, 9, 5, fields = { name = name_at(0, 6), body = body }, children = { body } })
+  local found = marks(root(class), 0, 100, { [1] = 2 })
+  T.ok(found[0], "the class")
+  T.ok(found[1], "its first method")
+end)
+
+T.test("chunks: a declarator holds the name in C and C++", function()
+  -- `int start(struct server *s) {` keeps its name one or more declarators down.
+  local name = name_at(0, 4)
+  local inner = node({ 0, 4, 0, 30, fields = { declarator = name } })
+  local fn = node({ 0, 0, 6, 1, fields = { declarator = inner }, children = { inner } })
+  T.ok(marks(root(fn))[0], "the function")
+end)
+
+T.test("chunks: a declarator on another line is not a name", function()
+  local inner = node({ 3, 4, 3, 30 })
+  local fn = node({ 0, 0, 6, 1, fields = { declarator = inner }, children = { inner } })
+  T.eq(next(marks(root(fn))), nil)
+end)
+
 T.test("chunks: a name that runs over several lines is not a name", function()
   -- `const { a, b, c } = helpers()` written out one per line. Marking it would light up
   -- every line.

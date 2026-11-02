@@ -1,19 +1,23 @@
 -- Tree-sitter captures. Neovim falls back from @a.b.lang to @a.b to @a, so only the
 -- captures that differ from their parent need a line here.
+--
+-- Color goes where it tells you something the shape of the text does not. A field, a
+-- method and a variable are all just words, so they differ in color. `=` and `self` can
+-- be read on sight, and appear on nearly every line, so they stay quiet.
 return function(define)
   local link, syn, each = define.link, define.syn, define.each
   local G = {}
 
   G["@variable"] = { fg = "fg" }
-  G["@variable.builtin"] = { fg = "special" }
+  G["@variable.builtin"] = { fg = "muted" }
   G["@variable.parameter"] = { fg = "muted" }
-  G["@variable.parameter.builtin"] = { fg = "special" }
-  G["@variable.member"] = { fg = "fg" }
+  G["@variable.parameter.builtin"] = { fg = "muted" }
+  G["@variable.member"] = { fg = "property" }
   G["@constant"] = { fg = "constant" }
-  G["@constant.builtin"] = { fg = "special" }
+  G["@constant.builtin"] = { fg = "constant" }
   G["@constant.macro"] = { fg = "preproc" }
   G["@module"] = syn("type")
-  G["@module.builtin"] = { fg = "special" }
+  G["@module.builtin"] = syn("type")
   G["@label"] = syn("keyword")
   G["@string"] = syn("string")
   G["@string.documentation"] = { fg = "comment" }
@@ -24,13 +28,13 @@ return function(define)
   G["@character.special"] = syn("operator")
   each(G, { "@boolean", "@number", "@number.float" }, syn("number"))
   each(G, { "@type", "@type.builtin", "@type.definition", "@attribute" }, syn("type"))
-  G["@attribute.builtin"] = { fg = "special" }
-  G["@property"] = { fg = "fg" }
+  G["@attribute.builtin"] = syn("type")
+  G["@property"] = { fg = "property" }
   each(G, { "@function", "@function.call", "@function.method", "@function.method.call" }, syn("func"))
-  G["@function.builtin"] = { fg = "special" }
+  G["@function.builtin"] = syn("func")
   G["@function.macro"] = { fg = "preproc" }
   G["@constructor"] = syn("type")
-  G["@operator"] = syn("operator")
+  G["@operator"] = { fg = "muted" }
   each(G, {
     "@keyword", "@keyword.coroutine", "@keyword.function", "@keyword.type", "@keyword.modifier",
     "@keyword.repeat", "@keyword.return", "@keyword.debug", "@keyword.exception",

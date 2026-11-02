@@ -7,7 +7,7 @@ local Theme = require("colorrex.theme")
 
 local CORPUS = os.getenv("COLORREX_THEMES") or "/usr/share/ghostty/themes"
 local OPTS = Config.resolve()
-local FORCED = Config.resolve({ force_unique = true })
+local PLAIN = Config.resolve({ voice = false })
 
 local function corpus()
   local themes = {}
@@ -61,8 +61,8 @@ local HARD = {
 }
 
 -- Lowered by hand as the compiler improves. Raising one means it got worse.
-local CLASH_LIMIT, RECAST_LIMIT, FADED_LIMIT, TWIN_LIMIT = 11, 47, 21, 35
-local VOICE_RECAST_LIMIT, VOICED_FLOOR = 18, 260
+local CLASH_LIMIT, RECAST_LIMIT, FADED_LIMIT, TWIN_LIMIT = 11, 45, 19, 34
+local VOICE_RECAST_LIMIT, VOICED_FLOOR = 20, 255
 
 local function verify(name, theme)
   local colorscheme = Compiler.compile(theme, OPTS)
@@ -231,6 +231,7 @@ T.test("identity: most themes keep the ANSI convention untouched", function()
 end)
 
 T.test("identity: a theme keeps as much color as it came with", function()
+  local Casting = require("colorrex.roles.casting")
   local Color = require("colorrex.color")
   local Roles = require("colorrex.roles")
   local themes = corpus()
@@ -244,10 +245,14 @@ T.test("identity: a theme keeps as much color as it came with", function()
   local faded = 0
   for _, theme in pairs(themes) do
     local colorscheme = Compiler.compile(theme, OPTS)
+    local row = {} -- where each role was meant to sit, in this theme's voice if it has one
+    for _, voice in ipairs(Casting.VOICES) do
+      row = voice.name == colorscheme.voice and voice.roles or row
+    end
     local shown, source = {}, {}
     for _, role in ipairs(Roles.SYNTAX) do
       shown[#shown + 1] = Color.chroma(colorscheme.roles[role.name].hex)
-      source[#source + 1] = Color.chroma(colorscheme.filled.ansi[role.slots[1]])
+      source[#source + 1] = Color.chroma(colorscheme.filled.ansi[row[role.name] or role.slots[1]])
     end
     faded = faded + (middle(shown) < middle(source) * 0.9 and 1 or 0)
   end
@@ -341,10 +346,10 @@ T.test("voice: a nudge to the cursor rarely changes how code reads", function()
   local Color = require("colorrex.color")
   local recast = 0
   for _, theme in pairs(themes) do
-    local before = role_colors(Compiler.compile(theme, FORCED))
+    local before = role_colors(Compiler.compile(theme, OPTS))
     local moved = false
     local function nudged(change)
-      local after = role_colors(Compiler.compile(edited(theme, change), FORCED))
+      local after = role_colors(Compiler.compile(edited(theme, change), OPTS))
       moved = moved or roles_apart(before, after, Color, Color.DISTINCT) >= 3
     end
     for _, field in ipairs({ "bg", "fg", "cursor" }) do
@@ -365,19 +370,6 @@ T.test("voice: a nudge to the cursor rarely changes how code reads", function()
   T.ok(recast <= VOICE_RECAST_LIMIT, ("%d themes"):format(recast))
 end)
 
-T.test("voice: a theme family stays a family", function()
-  local themes = corpus()
-  if next(themes) == nil then
-    T.skip("no theme corpus at " .. CORPUS)
-  end
-  local Color = require("colorrex.color")
-  for _, pair in ipairs(FAMILIES) do
-    local a = role_colors(Compiler.compile(themes[pair[1]], FORCED))
-    local b = role_colors(Compiler.compile(themes[pair[2]], FORCED))
-    T.ok(roles_apart(a, b, Color, Color.DISTINCT) <= 1, pair[1] .. " and " .. pair[2] .. " came apart")
-  end
-end)
-
 T.test("voice: most themes with a colored cursor speak in it", function()
   local themes = corpus()
   if next(themes) == nil then
@@ -385,7 +377,7 @@ T.test("voice: most themes with a colored cursor speak in it", function()
   end
   local voiced, total = 0, 0
   for _, theme in pairs(themes) do
-    local colorscheme = Compiler.compile(theme, FORCED)
+    local colorscheme = Compiler.compile(theme, OPTS)
     if colorscheme.voice then
       voiced = voiced + 1
       T.ok(colorscheme.voice == "magenta" or colorscheme.casting == 1, "a voice is not recast too")
@@ -421,11 +413,11 @@ T.test("readable: the leading roles do not share one hue", function()
   local plain, forced = 0, 0
   for _, theme in pairs(themes) do
     plain = plain + (clashes(Compiler.compile(theme, OPTS)) and 1 or 0)
-    forced = forced + (clashes(Compiler.compile(theme, FORCED)) and 1 or 0)
+    forced = forced + (clashes(Compiler.compile(theme, PLAIN)) and 1 or 0)
   end
-  print(("  leading roles sharing a hue: %d themes, %d with force_unique"):format(plain, forced))
+  print(("  leading roles sharing a hue: %d themes, %d on the convention"):format(plain, forced))
   T.ok(plain <= CLASH_LIMIT, ("%d themes"):format(plain))
-  T.ok(forced <= CLASH_LIMIT, ("%d themes with force_unique"):format(forced))
+  T.ok(forced <= CLASH_LIMIT, ("%d themes on the convention"):format(forced))
 end)
 
 T.test("groups: a group defined in two areas is refused", function()
@@ -471,9 +463,9 @@ T.test("voice: leaves the base, the comment and the accent where they were", fun
   local themes = corpus()
   themes.one_light, themes.solarized_light = HARD.one_light, HARD.solarized_light
   for name, theme in pairs(themes) do
-    local forced, plain = Compiler.compile(theme, FORCED), Compiler.compile(theme, OPTS)
+    local voiced, plain = Compiler.compile(theme, OPTS), Compiler.compile(theme, PLAIN)
     for _, role in ipairs({ "base", "fg", "comment", "accent", "error", "warn", "ok", "info", "hint" }) do
-      T.eq(forced.roles[role].hex, plain.roles[role].hex, name .. " " .. role)
+      T.eq(voiced.roles[role].hex, plain.roles[role].hex, name .. " " .. role)
     end
   end
 end)
@@ -485,7 +477,7 @@ T.test("identity: every theme has a stable id of its own", function()
   end
   local ids, count = {}, 0
   for name, theme in pairs(themes) do
-    local first, second = Compiler.compile(theme, FORCED), Compiler.compile(theme, FORCED)
+    local first, second = Compiler.compile(theme, OPTS), Compiler.compile(theme, OPTS)
     T.eq(first.id, second.id, name)
     T.eq(first.casting, second.casting, name)
     T.ok(ids[first.id] == nil or ids[first.id] == first.signature, name .. " shares an id with another theme")

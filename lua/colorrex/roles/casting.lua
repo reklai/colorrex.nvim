@@ -2,10 +2,10 @@
 --
 -- No terminal theme says which color is a keyword. What it has is the ANSI
 -- convention, which is the closest thing to what its author meant, so a theme keeps
--- that. Keywords stay magenta and functions blue, unless that would make the code
--- hard to read: two syntax roles that look alike, or keywords, functions and types,
--- which sit side by side in all code, sharing a hue. Then it moves as little as
--- that takes.
+-- that when it has nothing else to say. Keywords stay magenta and functions blue,
+-- unless that would make the code hard to read: two syntax roles that look alike, or
+-- keywords, functions and types, which sit side by side in all code, sharing a hue.
+-- Then it moves as little as that takes.
 --
 -- So casting follows the palette, and only the palette. Two themes with the same
 -- colors read the same in code, whatever their backgrounds, because they are the
@@ -13,12 +13,12 @@
 -- a family. Colors are never changed, only moved between roles, and strings and
 -- comments stay where they are.
 --
--- force_unique asks for more: that a theme speak in its own voice. A theme that gave
--- its cursor a color of its own made one decision the convention ignores, so that
--- color takes the keywords, and the rest follows one of six arrangements modeled on
--- themes people recognize. This is colorrex's own rule, not what the author meant:
--- terminal themes do not say that. Rules that respond smoothly cannot split palettes
--- that are nearly identical, so those stay alike, and differ in the accent instead.
+-- A theme that gave its cursor a color of its own has said something, though: it made
+-- one decision the convention ignores. So that color takes the keywords, and the rest
+-- follows one of six arrangements modeled on themes people recognize. This is its
+-- voice. It is colorrex's own rule, not what the author meant: terminal themes do not
+-- say that. Rules that respond smoothly cannot split palettes that are nearly identical,
+-- so those stay alike, and differ in the accent instead.
 local Color = require("colorrex.color")
 
 local M = {}
@@ -113,21 +113,22 @@ function M.arrangements()
   return arrangements
 end
 
-local function same_hue(x, y)
+function M.same_hue(x, y)
   return Color.chroma(x) >= Color.HUE_MIN_CHROMA and Color.chroma(y) >= Color.HUE_MIN_CHROMA
     and Color.hue_gap(x, y) < M.SAME_HUE
 end
 
---- Whether any two leading roles share a hue.
-function M.leads_clash(picks)
+--- Whether this voice would blur roles read side by side: any two leads in one hue, or
+--- types and numbers, which share lines like `count: int = 3`.
+function M.blurs(picks)
   for i = 1, LEADS do
     for j = i + 1, LEADS do
-      if same_hue(picks[M.ROLES[i]].hex, picks[M.ROLES[j]].hex) then
+      if M.same_hue(picks[M.ROLES[i]].hex, picks[M.ROLES[j]].hex) then
         return true
       end
     end
   end
-  return false
+  return M.same_hue(picks.type.hex, picks.number.hex)
 end
 
 --- The voice whose anchor sits nearest `cursor` in hue. A palette without a usable
@@ -153,7 +154,7 @@ local function comparisons(colors, fixed)
     family[i], alike[i] = {}, {}
     alike_fixed[i] = Color.distance(colors[i], fixed) < Color.DISTINCT
     for j = 1, #colors do
-      family[i][j] = same_hue(colors[i], colors[j])
+      family[i][j] = M.same_hue(colors[i], colors[j])
       alike[i][j] = Color.distance(colors[i], colors[j]) < Color.DISTINCT
     end
   end

@@ -21,11 +21,19 @@ keeps its hue. Text also stays readable on whatever is behind it: a selection ea
 off until comments can be read through it, and colored text in a float is lifted
 against the float. `:ColorRex explain` shows where any color came from.
 
+**Useful.** Color goes where it tells you something the shape of the text does not.
+A field, a method and a variable are all just words, so color separates them. `=` and
+`self` can be read on sight and appear on nearly every line, so they stay quiet, and
+red is left to mean something.
+
 **Unique.** Every theme looks like itself. Each of the twelve chromatic ANSI colors
-has a job on screen, and your cursor color is the accent. Roles follow the ANSI
-convention, the closest thing a terminal theme has to its author's intent, and move
-only as far as it takes to keep code readable. So a difference you can see always
-shows, a difference you cannot see never does, and a family of themes stays a family.
+has a job on screen, and your cursor color is the accent. Fields get a color of their
+own, off the hues of keywords, functions and types, so `req.Body` shows which part is
+the object. A colored cursor sets the
+theme's voice, and otherwise roles follow the ANSI convention, the closest thing a
+terminal theme has to its author's intent. Either way they move only as far as it takes
+to keep code readable. So a difference you can see shows, a difference you cannot see
+almost never does, and a family of themes stays a family.
 Two themes with the same colors read the same in code, because they are. Roles the
 palette cannot separate by color differ by weight or slant, and `:ColorRex status`
 shows every theme's exact id.
@@ -104,18 +112,19 @@ which also turns the colorscheme on:
 require("colorrex").setup({
   transparent = true, -- leave the background to the terminal
   contrast = 3.0,     -- minimum contrast for code, up to 4.5
-  force_unique = false, -- give each theme its own voice
+  voice = true,       -- let a theme's cursor color lead its code
   chunks = false,     -- mark where each chunk of code starts
   auto = true,        -- also sync on focus and dark/light changes
 })
 ```
 
-With `force_unique = true`, each theme speaks in its own voice. If the theme gave its
-cursor a color of its own, that color takes the keywords, and the other roles follow
-one of six arrangements modeled on themes people recognize. It is colorrex's own rule,
-not what the theme's author meant, so a theme with a known look elsewhere loses it.
-Themes whose palettes and cursors nearly match stay alike. `:ColorRex status` names
-the voice, and `:ColorRex check` says why it was chosen.
+Each theme speaks in its own voice. If it gave its cursor a color of its own, that
+color takes the keywords, and the other roles follow one of six arrangements modeled on
+themes people recognize. It is colorrex's own rule, not what the theme's author meant,
+so a theme with a look known from elsewhere can differ from it, though most of those
+keep a neutral cursor and are unchanged. Themes whose palettes and cursors nearly match
+stay alike. `:ColorRex status` names the voice, `:ColorRex check` says why it was
+chosen, and `voice = false` keeps every theme on the ANSI convention.
 
 With `chunks = true`, the name at the start of each chunk stands out, so you can scan
 a file by its shape. It works in any language with Treesitter highlighting, because

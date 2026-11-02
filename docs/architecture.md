@@ -74,7 +74,7 @@ Use these words, in code and in prose.
 | fingerprint | A number computed from a theme. The id is its short form. |
 | arrangement | One assignment of colors to roles. |
 | casting | The arrangement a theme uses, by number. 1 is the ANSI convention. |
-| voice | One of six named arrangements. `force_unique` picks one by the cursor's hue. |
+| voice | One of six named arrangements, picked by the cursor's hue. Also the option. |
 | chunk | A node that starts its own line and runs five lines or more. |
 | landmark | The name that opens a chunk in the outer two levels. Also the role it wears. |
 | group spec | A highlight group written in roles. |
@@ -124,15 +124,20 @@ even permutations of seven roles: 2,520, any two at least three roles apart by
 construction, because differing in exactly two would be a single swap, which is odd.
 The list is only built when a theme needs it.
 
-**`force_unique` is a voice, not a hash.** Recognizable themes make one strong
-decision, and most Rex themes have already made one: they gave the cursor a color of
-its own. So the opt-in picks one of six named arrangements by the cursor's hue. It
-keeps most of what made the fingerprint fail: an invisible change almost never
-recasts a theme, and families stay together. The cost is that near-clones with matching
-cursors stay alike. No rule can both respond smoothly and split palettes that are
-nearly identical, so those differ in the accent and not in the code. The cursor does
-not reveal what an author meant, and this rule does not claim to. Where a row would
-cost a role its readability, the theme keeps the convention.
+**A theme speaks in its voice, and a fingerprint never chooses.** Recognizable themes
+make one strong decision, and most Rex themes have already made one: they gave the
+cursor a color of its own. So one of six named arrangements is picked by the cursor's
+hue. It fixes what made the fingerprint fail: an invisible change almost never recasts
+a theme, and families stay together. The cost is that near-clones with matching cursors
+stay alike. No rule can both respond smoothly and split palettes that are nearly
+identical, so those differ in the accent and not in the code. The cursor does not
+reveal what an author meant, and this rule does not claim to. Where a row would cost a
+role its readability, the theme keeps the convention.
+
+It is on by default because it costs little. A voice needs a cursor with a hue of its
+own, and most themes with a look known from elsewhere leave the cursor neutral, so 12
+of 14 checked are unchanged. It applies to 255 of Ghostty's 819 themes, 225 of which
+differ from the convention, and to 31 of Rex's 42.
 
 The promise is two-sided, and both sides are tests: a difference you can see must
 show, and a difference you cannot see must not. Twins are not a failure when two
@@ -140,6 +145,25 @@ themes have the same colors. Most of Ghostty's 152 do, and differ in their backg
 Terminal themes cannot say which color is a keyword, so an author's own mapping is
 out of reach: TokyoNight's Neovim theme uses an orange for constants that is not in
 its ANSI colors at all.
+
+**Color goes where shape cannot do the job.** A theme is not trying to color things, it
+is trying to tell things apart. `=` and `->` are recognizable on sight, and `self` and
+`this` are the same word on nearly every line, so color on them says nothing, and
+spending red there took it away from errors. `Body`, `Close` and `req` are all just
+words, so color is the only thing separating a field, a method and a variable. Keywords
+are fixed words too, and keep their color because scanning for control flow is the one
+use of them that shape does not serve at a glance. Strings keep theirs because quotes
+mark where one starts and not how far it runs.
+
+**Fields have a color of their own.** They once stayed plain, on the theory that color
+is scarce and names are a quarter of all text. In real Go that loses too much:
+`req.Body` and `userHandler.databaseQuery.CreateUser()` read as one run of text, when
+gopls and Treesitter both know which part is the field. So `property` takes the first
+bright slot off the hues of keywords, functions and types, after casting, because a
+voice can put functions on cyan. Nothing else competes for those slots in code. In
+palettes with no such color it stays fg, which is 4 of Rex's 42 themes. This reaches any
+language whose Treesitter queries or language server tag fields, under the shared names
+`@property`, `@variable.member` or `@lsp.type.property`.
 
 **Text is judged against what is behind it.** Every color is made readable on the
 background, and most of the editor is not the background. A group that sets both its
@@ -160,7 +184,8 @@ at a call, and which depends on the code: 37% of chunks in TypeScript source ope
 named definition against 10% in tests, where 56% open with a call like `describe(...)`.
 So `chunks.lua` reads position in the tree, and asks only that a landmark has a name,
 using the field names grammars share, which drops `if` and `for` with no list of
-keywords. Limiting it to the outer two levels and five lines or more took landmarks from
+keywords. That holds for Go, Rust, C, C++, JavaScript, TypeScript, Python and Lua. A
+grammar that leaves a name unlabeled misses out: Zig's `const Server = struct` is one. Limiting it to the outer two levels and five lines or more took landmarks from
 14-19% of lines to 3-5% across TypeScript, TSX, Lua and Python. Fewer is the point:
 color only says something when it is scarce. This cannot live in highlight groups,
 because a group cannot know a token's position, so the host draws ephemeral marks during
@@ -169,7 +194,7 @@ redraw, on the rows on screen, from the tree Treesitter already parsed.
 Shape is the same in every theme, and voice is not. The rule for where landmarks go is
 fixed, and what fills them is the theme's own cursor color, so structure does not make
 themes more alike. Landmarks need no role moved, which is why themes with a look of
-their own elsewhere keep it, where `force_unique` does not.
+their own elsewhere keep it whatever the voice.
 
 **The saved theme doubles as a signal.** This idea is from `tinted-osc-colors.nvim`.
 One Neovim noticing a change is enough for all of them to check, and because the

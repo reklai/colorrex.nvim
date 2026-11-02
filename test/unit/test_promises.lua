@@ -6,6 +6,7 @@ local Compiler = require("colorrex.compiler")
 local Config = require("colorrex.config")
 
 local OPTS = Config.resolve()
+local PLAIN = Config.resolve({ voice = false })
 
 local function good()
   return Compiler.compile(F.theme(), OPTS)
@@ -83,7 +84,7 @@ end)
 T.test("notes: each adjustment the solver makes leaves one", function()
   local Roles = require("colorrex.roles")
   local function has(theme, code)
-    for _, note in ipairs(Compiler.compile(theme, OPTS).notes) do
+    for _, note in ipairs(Compiler.compile(theme, PLAIN).notes) do
       if note.code == code then
         return true
       end
@@ -133,7 +134,7 @@ T.test("repair: the lesser role moves, so a theme keeps its types", function()
       [8] = "#857262", [9] = "#d55c3c", [10] = "#72a248", [11] = "#c18f22",
       [12] = "#5985b5", [13] = "#b36b95", [14] = "#4d9d86", [15] = "#fefaf5",
     },
-  }), OPTS).roles
+  }), PLAIN).roles
   T.eq(roles.type.slot, 3)
   T.eq(roles.number.slot, 1)
 end)
@@ -170,6 +171,20 @@ T.test("number: past yellow and a taken constant, goes to bright red", function(
   T.eq(compiled.roles.number.slot, 9)
   T.eq(compiled.groups.Constant.fg, compiled.roles.constant.hex)
   T.ok(compiled.roles.constant.hex ~= compiled.roles.number.hex)
+end)
+
+T.test("promises: a field too faint to read is caught, unless it is the theme's fg", function()
+  local compiled = Compiler.compile(F.theme(), OPTS)
+  compiled.roles.property.hex = compiled.filled.bg
+  local caught
+  for _, failure in ipairs(Compiler.check(compiled, OPTS)) do
+    caught = caught or failure.message:find("property", 1, true)
+  end
+  T.ok(caught)
+  compiled.roles.property.source = "fg"
+  for _, failure in ipairs(Compiler.check(compiled, OPTS)) do
+    T.ok(not failure.message:find("property is", 1, true), failure.message)
+  end
 end)
 
 T.test("promises: a landmark too faint to read is caught", function()

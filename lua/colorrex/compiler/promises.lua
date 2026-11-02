@@ -73,6 +73,9 @@ function M.check(colorscheme, opts)
   end
   readable("accent")
   readable("landmark")
+  if roles.property.source ~= "fg" then -- fg is the theme's to choose, however faint
+    readable("property")
+  end
 
   local fg_contrast = Color.contrast(fg, bg)
   local comment_contrast = Color.contrast(roles.comment.hex, bg)

@@ -120,7 +120,7 @@ end)
 
 T.test("identity: changing an option never changes a theme's id", function()
   local a = Compiler.compile(F.theme(), Config.resolve())
-  local b = Compiler.compile(F.theme(), Config.resolve({ contrast = 4.5, transparent = false, force_unique = true }))
+  local b = Compiler.compile(F.theme(), Config.resolve({ contrast = 4.5, transparent = false, voice = false }))
   T.eq(a.id, b.id)
 end)
 
@@ -135,7 +135,16 @@ T.test("casting: a background tint changes nothing in code, by default", functio
   end
 end)
 
-local VOICED = Config.resolve({ force_unique = true })
+local VOICED = Config.resolve({ voice = true })
+
+T.test("voice: on by default, and false keeps every theme on the convention", function()
+  local cursor = F.theme().ansi[4]
+  T.eq(Compiler.compile(F.theme({ cursor = cursor }), Config.resolve()).voice, "blue")
+  local plain = Compiler.compile(F.theme({ cursor = cursor }), Config.resolve({ voice = false }))
+  T.eq(plain.voice, nil)
+  T.eq(plain.roles.keyword.slot, 5)
+  T.eq(plain.roles.func.slot, 4)
+end)
 
 T.test("voice: a tint in the background leaves it alone", function()
   local one = Compiler.compile(F.theme({ bg = "#1b1f27" }), VOICED)
@@ -198,6 +207,13 @@ T.test("voice: a row that would put two leading roles in one hue gives way too",
   local ansi = F.theme().ansi
   ansi[2] = "#ffb0b4" -- apart from red, but the red row would put keywords and functions in one hue
   T.ok(Color.distance(ansi[1], ansi[2]) >= Color.DISTINCT)
+  local compiled = Compiler.compile(F.theme({ cursor = ansi[1], ansi = ansi }), VOICED)
+  T.eq(compiled.voice, nil)
+end)
+
+T.test("voice: a row that would blur types and numbers gives way too", function()
+  local ansi = F.theme().ansi
+  ansi[5] = "#a0e0f0" -- magenta turned cyan: the red row would put numbers in the type's hue
   local compiled = Compiler.compile(F.theme({ cursor = ansi[1], ansi = ansi }), VOICED)
   T.eq(compiled.voice, nil)
 end)
@@ -282,9 +298,99 @@ end)
 
 T.test("landmark: follows functions in every voice that leaves it to them", function()
   local ansi = F.theme().ansi
-  local compiled = Compiler.compile(F.theme({ cursor = ansi[1] }), Config.resolve({ force_unique = true }))
+  local compiled = Compiler.compile(F.theme({ cursor = ansi[1] }), Config.resolve({ voice = true }))
   T.eq(compiled.voice, "red")
   T.eq(compiled.roles.landmark.hex, compiled.roles.func.hex)
+end)
+
+T.test("property: a field has a color of its own, apart from what is read beside it", function()
+  local Color = require("colorrex.color")
+  local compiled = Compiler.compile(F.theme({ cursor = false }), Config.resolve())
+  local R = compiled.roles
+  T.eq(R.property.source, "ansi 14")
+  T.eq(compiled.groups["@property"].fg, R.property.hex)
+  T.eq(compiled.groups["@variable.member"].fg, R.property.hex)
+  T.eq(compiled.groups["@lsp.type.property"].fg, R.property.hex)
+  T.ok(R.property.hex ~= R.fg.hex and R.property.hex ~= R.func.hex)
+  T.eq(compiled.groups["@variable"].fg, R.fg.hex)
+  T.eq(compiled.groups["@lsp.type.variable"].fg, R.fg.hex)
+  T.ok(Color.distance(R.property.hex, R.func.hex) >= Color.DISTINCT)
+end)
+
+T.test("property: moves off a hue that a voice gave to functions", function()
+  local Casting = require("colorrex.roles.casting")
+  local ansi = F.theme().ansi
+  local R = Compiler.compile(F.theme({ cursor = ansi[4] }), Config.resolve()).roles
+  T.eq(R.func.slot, 6, "the blue voice puts functions on cyan")
+  T.ok(not Casting.same_hue(R.property.hex, R.func.hex), R.property.source)
+end)
+
+T.test("property: stays off keywords and types too", function()
+  local Casting = require("colorrex.roles.casting")
+  local ansi = F.theme().ansi
+  ansi[14] = ansi[5]
+  ansi[13] = ansi[3]
+  local R = Compiler.compile(F.theme({ cursor = false, ansi = ansi }), Config.resolve()).roles
+  T.ok(R.property.source == "ansi 12" or R.property.source == "ansi 10", R.property.source)
+  T.ok(not Casting.same_hue(R.property.hex, R.keyword.hex))
+  T.ok(not Casting.same_hue(R.property.hex, R.type.hex))
+end)
+
+T.test("property: too near plain text to show, it does not pretend", function()
+  -- All five are real colors, off every leading hue, and just beside a tinted fg.
+  local ansi = F.theme().ansi
+  for _, slot in ipairs({ 10, 11, 12, 13, 14 }) do
+    ansi[slot] = "#a8dcba"
+  end
+  local compiled = Compiler.compile(F.theme({ fg = "#a8d8b8", cursor = false, ansi = ansi }), Config.resolve())
+  T.eq(compiled.roles.property.source, "fg")
+end)
+
+T.test("property: selections have to stay readable under fields too", function()
+  local Roles = require("colorrex.roles")
+  local compiled = Compiler.compile(F.theme(), Config.resolve())
+  local names = {}
+  for _, item in ipairs(Roles.surface_text(compiled.roles, compiled.filled.bg)) do
+    names[item.name] = true
+  end
+  T.ok(names.property)
+end)
+
+T.test("property: a monochrome theme keeps fields as text", function()
+  local ansi = {}
+  for slot = 0, 15 do
+    ansi[slot] = "#909090"
+  end
+  local compiled = Compiler.compile(F.theme({ ansi = ansi, cursor = false }), Config.resolve())
+  T.eq(compiled.roles.property.hex, compiled.filled.fg)
+end)
+
+T.test("useful: what shape already says stays quiet", function()
+  local compiled = Compiler.compile(F.theme({ cursor = false }), Config.resolve())
+  local G, R = compiled.groups, compiled.roles
+  for _, group in ipairs({ "Operator", "@operator", "@lsp.type.operator", "@variable.builtin", "@variable.parameter.builtin" }) do
+    T.eq(G[group].fg, R.muted.hex, group)
+  end
+end)
+
+T.test("useful: red means something, so a builtin is what it is", function()
+  local compiled = Compiler.compile(F.theme({ cursor = false }), Config.resolve())
+  local G, R = compiled.groups, compiled.roles
+  T.eq(G["@function.builtin"].fg, R.func.hex)
+  T.eq(G["@constant.builtin"].fg, R.constant.hex)
+  T.eq(G["@module.builtin"].fg, R.type.hex)
+  T.eq(G["@attribute.builtin"].fg, R.type.hex)
+end)
+
+T.test("useful: words that only color can separate keep it", function()
+  local compiled = Compiler.compile(F.theme({ cursor = false }), Config.resolve())
+  local G, R = compiled.groups, compiled.roles
+  T.eq(G["@property"].fg, R.property.hex)
+  T.eq(G["@function.method.call"].fg, R.func.hex)
+  T.eq(G["@type"].fg, R.type.hex)
+  T.eq(G["@variable"].fg, R.fg.hex)
+  T.eq(G["@tag"].fg, R.special.hex)
+  T.eq(G["@string.escape"].fg, R.operator.hex)
 end)
 
 T.test("roles: red reaches code, as constants", function()

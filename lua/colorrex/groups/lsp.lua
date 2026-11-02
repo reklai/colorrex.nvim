@@ -19,11 +19,12 @@ return function(define)
     "@lsp.type.interface", "@lsp.type.namespace", "@lsp.type.typeParameter",
   }, syn("type"))
   G["@lsp.type.parameter"] = { fg = "muted" }
-  each(G, { "@lsp.type.property", "@lsp.type.variable" }, { fg = "fg" })
+  G["@lsp.type.property"] = { fg = "property" }
+  G["@lsp.type.variable"] = { fg = "fg" }
   G["@lsp.type.enumMember"] = syn("number")
   G["@lsp.type.string"] = syn("string")
   G["@lsp.type.number"] = syn("number")
-  G["@lsp.type.operator"] = syn("operator")
+  G["@lsp.type.operator"] = { fg = "muted" }
   G["@lsp.type.comment"] = link("Comment")
   G["@lsp.mod.deprecated"] = { strikethrough = true }
 

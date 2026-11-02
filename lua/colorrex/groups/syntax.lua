@@ -15,7 +15,7 @@ return function(define)
   each(G, { "Conditional", "Repeat", "Label", "Keyword", "Exception", "StorageClass" }, syn("keyword"))
   each(G, { "PreProc", "Include", "Define", "Macro", "PreCondit" }, { fg = "preproc" })
   each(G, { "Type", "Structure", "Typedef" }, syn("type"))
-  G.Operator = syn("operator")
+  G.Operator = { fg = "muted" }
   G.Special = syn("operator")
   G.SpecialChar = syn("operator")
   G.Tag = { fg = "special" }
