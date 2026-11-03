@@ -91,6 +91,7 @@ M.ON_SURFACE = { text = 2.5, comment = 2.25 }
 local EASE_STEP = 0.01
 
 local MUTED_ON = { "cursorline", "element" } -- the surfaces quiet text is used on
+local SELECT_ON = { "visual", "element", "base" } -- the surfaces a picker's matches are on
 
 -- Roles used as text on a float, which sits on `element` and not on the background
 -- they were made readable against. Each gets a `float_` role, lifted to suit.
@@ -549,22 +550,36 @@ function M.solve(theme, opts)
   end
   roles.diff_deleted = lifted_onto("error", "diff_delete", "error on a deleted line")
 
-  -- Lifted against both surfaces it is used on. On a mid-tone background they can sit
-  -- either side of the point where lifting changes direction, so one lift undoes the
-  -- other, and then only fg reads on both.
-  local muted = Color.mix(bg, fg, 0.72)
-  local function muted_floor(surface)
-    return math.min(floor, Color.contrast(fg, roles[surface].hex))
-  end
-  for _, surface in ipairs(MUTED_ON) do
-    muted = Color.lift(muted, roles[surface].hex, muted_floor(surface))
-  end
-  for _, surface in ipairs(MUTED_ON) do
-    if Color.contrast(muted, roles[surface].hex) < muted_floor(surface) then
-      muted = fg
+  --- A color lifted against every surface it is used on. On a mid-tone background they
+  --- can sit either side of the point where lifting changes direction, so one lift
+  --- undoes another, and then only fg reads on all of them.
+  local function readable_on(hex, surfaces)
+    local function target(surface)
+      return math.min(floor, Color.contrast(fg, roles[surface].hex))
     end
+    for _, surface in ipairs(surfaces) do
+      hex = Color.lift(hex, roles[surface].hex, target(surface))
+    end
+    for _, surface in ipairs(surfaces) do
+      if Color.contrast(hex, roles[surface].hex) < target(surface) then
+        return fg
+      end
+    end
+    return hex
   end
+
+  local muted = readable_on(Color.mix(bg, fg, 0.72), MUTED_ON)
   roles.muted = { hex = muted, source = muted == fg and "fg" or "fg over bg at 72%" }
+
+  -- A picker's matched letters set no background: the selection slides under them, and
+  -- the list sits on the background or on a float.
+  local accent = roles.accent.hex
+  local select_accent = readable_on(accent, SELECT_ON)
+  roles.select_accent = {
+    hex = select_accent,
+    source = select_accent == fg and "fg" or "accent on a selection",
+    from = select_accent ~= accent and select_accent ~= fg and accent or nil,
+  }
 
   for _, name in ipairs(FILLS) do
     local fill = roles[name].hex

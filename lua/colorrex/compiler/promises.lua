@@ -17,6 +17,10 @@ local ROUNDING = 0.01 -- bisection lands on 8-bit colors, a hair under an exact 
 -- Lines, not text. They are meant to recede, and nobody reads them.
 local DECORATION, DECORATION_ALT = "Border$", "Separator$"
 
+-- Groups with no background of their own, drawn on a list and on its selection as
+-- the selection moves: a picker's matched letters. The surface the list sits on.
+local OVER_SELECTION = { TelescopeMatching = "base", BlinkCmpLabelMatch = "element" }
+
 --- Judge one compiled colorscheme. Returns a list of failures; empty means kept.
 function M.check(colorscheme, opts)
   local failures = {}
@@ -106,15 +110,27 @@ function M.check(colorscheme, opts)
     fail("faithful.surface", "a selection is fainter than the cursor line")
   end
 
+  local function too_faint(text, fill)
+    local best = math.max(Color.contrast(fg, fill), Color.contrast(bg, fill))
+    return Color.contrast(text, fill) < math.min(opts.contrast, best, fg_contrast) - ROUNDING
+  end
+
   for name, group in pairs(colorscheme.groups) do
     -- A theme's fg is never altered, so one already below the floor is the theme's to
     -- choose. A readable fg is no excuse: it can still be the wrong side of a fill.
     local excused = group.fg == fg and fg_contrast < opts.contrast
     if group.fg and group.bg and not excused and not name:find(DECORATION) and not name:find(DECORATION_ALT) then
-      local best = math.max(Color.contrast(fg, group.bg), Color.contrast(bg, group.bg))
-      local ratio = Color.contrast(group.fg, group.bg)
-      if ratio < math.min(opts.contrast, best, fg_contrast) - ROUNDING then
-        fail("faithful.surface", ("%s is %.2f:1 on its own fill"):format(name, ratio))
+      if too_faint(group.fg, group.bg) then
+        fail("faithful.surface", ("%s is %.2f:1 on its own fill"):format(name, Color.contrast(group.fg, group.bg)))
+      end
+    end
+  end
+
+  for name, under in pairs(OVER_SELECTION) do
+    local group = colorscheme.groups[name]
+    for _, surface in ipairs({ under, "visual" }) do
+      if group and group.fg and too_faint(group.fg, roles[surface].hex) then
+        fail("faithful.surface", ("%s is %.2f:1 on %s"):format(name, Color.contrast(group.fg, roles[surface].hex), surface))
       end
     end
   end

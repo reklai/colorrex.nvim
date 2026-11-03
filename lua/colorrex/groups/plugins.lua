@@ -8,12 +8,12 @@ return function(define)
   G.TelescopeBorder = { fg = "border_strong", bg = base }
   G.TelescopeTitle = { fg = "accent", bold = true }
   G.TelescopeSelection = { bg = "visual" }
-  G.TelescopeMatching = { fg = "accent", bold = true }
+  G.TelescopeMatching = { fg = "select_accent", bold = true }
   G.TelescopePromptPrefix = { fg = "accent" }
   G.BlinkCmpMenu = link("Pmenu")
   G.BlinkCmpMenuBorder = link("FloatBorder")
   G.BlinkCmpMenuSelection = { bg = "visual" }
-  G.BlinkCmpLabelMatch = { fg = "accent", bold = true }
+  G.BlinkCmpLabelMatch = { fg = "select_accent", bold = true }
   G.BlinkCmpLabelDeprecated = { strikethrough = true }
   G.BlinkCmpKind = { fg = "muted" }
   G.BlinkCmpDoc = link("NormalFloat")

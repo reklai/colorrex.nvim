@@ -356,6 +356,48 @@ T.test("promises: lines are not held to the standard of text", function()
   T.eq(codes(colorscheme)["faithful.surface"], nil)
 end)
 
+--- A warm light Rex theme whose cursor color is only just readable on its background.
+local function light_cursor_near_floor()
+  local list = { "#4d3a33", "#c44f36", "#578c42", "#ab7c1c", "#4472ac", "#9c5589", "#3a8878", "#f0ddd0",
+    "#8a746a", "#dc6146", "#67a350", "#c39228", "#5687c2", "#b26a9f", "#48a08e", "#fffaf6" }
+  local ansi = {}
+  for i, hex in ipairs(list) do
+    ansi[i - 1] = hex
+  end
+  return Compiler.compile(F.theme({ fg = "#4d3a33", bg = "#fdf3ec", cursor = "#e07a4f", ansi = ansi }), OPTS)
+end
+
+T.test("surface: a picker's matched letters read on its selection and off it", function()
+  -- Telescope draws the selection under the matches; they set no background.
+  for label, colorscheme in pairs({ light = light_cursor_near_floor(), dark = faint_comments() }) do
+    local roles = colorscheme.roles
+    for _, name in ipairs({ "TelescopeMatching", "BlinkCmpLabelMatch" }) do
+      for _, surface in ipairs({ "visual", "element", "base" }) do
+        local ratio = Color.contrast(colorscheme.groups[name].fg, roles[surface].hex)
+        T.ok(ratio >= 3 - 0.01, ("%s %s on %s is %.2f:1"):format(label, name, surface, ratio))
+      end
+    end
+  end
+end)
+
+T.test("promises: matched letters too faint on the selection are caught", function()
+  local colorscheme = light_cursor_near_floor()
+  local accent, visual = colorscheme.roles.accent.hex, colorscheme.roles.visual.hex
+  T.ok(Color.contrast(accent, visual) < 3, "the accent reads on the selection, so this proves nothing")
+  colorscheme.groups.TelescopeMatching.fg = accent
+  T.ok(codes(colorscheme)["faithful.surface"])
+end)
+
+T.test("syntax: a word operator looks the same with or without a parser", function()
+  local groups = good().groups
+  for _, name in ipairs({ "typescriptOperator", "javaScriptOperator", "pythonOperator", "luaOperator", "cOperator" }) do
+    T.eq(groups[name].fg, groups["@keyword.operator"].fg, name)
+  end
+  -- Symbols stay quiet, including the Lua ones its syntax file links to the words.
+  T.eq(groups.Operator.fg, groups["@operator"].fg)
+  T.eq(groups.luaSymbolOperator.link, "Operator")
+end)
+
 T.test("report: a failed promise is an error, and adjustments are listed", function()
   local Report = require("colorrex.report")
   local colorscheme = good()

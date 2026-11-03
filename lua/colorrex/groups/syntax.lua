@@ -1,6 +1,6 @@
 -- The classic syntax groups, which syntax files and many plugins link to.
 return function(define)
-  local syn, each = define.syn, define.each
+  local link, syn, each = define.link, define.syn, define.each
   local G = {}
 
   G.Comment = { fg = "comment", italic = true }
@@ -24,6 +24,17 @@ return function(define)
   G.Underlined = { underline = true }
   G.Ignore = { fg = "border" }
   G.Error = { fg = "error" }
+
+  -- Word operators such as `new`, `and` and `sizeof`. The bundled syntax files put
+  -- them in Operator next to `+` and `,`, while Treesitter calls them
+  -- @keyword.operator. So a file read without a parser, as a large one often is, would
+  -- show the same word in a different color. Only groups that hold nothing but words
+  -- are here: in Rust, Java and Odin one group mixes in symbols, which stay quiet.
+  each(G, {
+    "typescriptOperator", "typescriptKeywordOp", "javaScriptOperator", "pythonOperator",
+    "luaOperator", "cOperator", "cppOperator",
+  }, syn("operator"))
+  G.luaSymbolOperator = link("Operator") -- its syntax file links it to luaOperator
 
   return G
 end
