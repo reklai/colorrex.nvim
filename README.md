@@ -20,8 +20,7 @@ and compiles them into over 300 highlight groups.
 
 ## The promises
 
-There are three: faithful, practical, and voice. They are goals, and each one is
-tested.
+There are three: faithful, practical, and voice. They are goals to work towards.
 
 **Faithful.** Your foreground and background are never altered. Every syntax
 color is one of your theme's ANSI colors, unchanged unless it is unreadable. A
