@@ -14,7 +14,7 @@ function M.status(status)
       status.voice and ("%s voice"):format(status.voice) or ("casting %d"):format(status.casting)),
     ("colors    fg %s  bg %s  accent %s"):format(status.fg, status.bg, status.accent),
     ("last sync %s"):format(summary),
-    ("auto      %s"):format(status.auto and "on (focus and dark/light changes)" or "off (:ColorRex only)"),
+    ("auto      %s"):format(status.auto and "on (focus, dark/light changes, and a watch while unfocused)" or "off (:ColorRex only)"),
     ("adjusted  %d (see :ColorRex check)"):format(status.adjustments),
   }, "\n")
 end

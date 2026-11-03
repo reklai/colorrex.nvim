@@ -18,8 +18,9 @@ M.defaults = {
   -- Mark where each chunk of code starts: the name on its first line stands out, so
   -- a file can be scanned by its shape. Needs Treesitter highlighting in the buffer.
   chunks = false,
-  -- Also sync on focus and on dark/light notifications. These cost nothing
-  -- while idle. Off: only :ColorRex changes colors after launch.
+  -- Also sync on focus and on dark/light notifications, and watch for a while after
+  -- focus leaves, which is when Rex's picker previews themes unannounced. Nothing
+  -- runs while idle. Off: only :ColorRex changes colors after launch.
   auto = true,
 }
 

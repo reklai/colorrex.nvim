@@ -133,6 +133,24 @@ local function suite()
   state = dump(tab)
   check("a focus change catches a dark-to-dark change", state.bg == "#282828", state.bg)
 
+  -- Rex's picker takes focus and previews themes without telling the block. Another
+  -- window taking focus is the same event, and set_theme the same silent change.
+  local elsewhere = vim.json.decode(rex("window", "new", "-s", session, "elsewhere", "--focus=false", "--json",
+    "--shell=none", "--", "/bin/sleep", "600"))
+  rex("window", "focus", "-s", session, elsewhere.window_id)
+  wait(300)
+  theme(tab, "dracula")
+  wait(250)
+  state = dump(tab)
+  check("unfocused, a dark-to-dark change shows with no key pressed", state.bg == "#282a36", state.bg)
+  theme(tab, "dracula_tint")
+  wait(250)
+  state = dump(tab)
+  check("and so does the next one, as a picker moves on", state.bg == "#2d2f3b", state.bg)
+  theme(tab, "gruvbox") -- what the cache test below expects to find saved
+  focus(tab)
+  wait(500)
+
   send(tab, "\027:qa!\r")
   wait(300)
 

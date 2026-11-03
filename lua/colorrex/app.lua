@@ -24,6 +24,12 @@ local NOTICE_MS = 2000
 -- Lets the burst of filesystem events from one write settle into a single check.
 local BROADCAST_MS = 30
 
+-- While focus is elsewhere, a theme can change with no signal at all: Rex's picker
+-- previews each theme without telling the block, and takes focus as it opens. So an
+-- unfocused Neovim asks, fast while themes keep changing, then slower, then not at
+-- all. Each ask waits for the last reply, so a slow link cannot pile them up.
+local WATCH = { fast_ms = 30, slow_ms = 250, ease_after_ms = 5000, stop_after_ms = 60000 }
+
 -- Short on purpose. A startup message longer than v:echospace, which is 68 in an
 -- 80-column window, stops Neovim at a hit-enter prompt on every launch.
 local NO_COLORS = "no colors reported; it needs Ghostty or Rex"
@@ -39,6 +45,9 @@ function App.new(host, config)
     cancel_retry = nil,
     cancel_notice = nil,
     cancel_saved_check = nil,
+    cancel_watch = nil,
+    watching = false, -- focus is elsewhere, and this Neovim is asking for changes
+    quiet_ms = 0, -- how long the watch has gone without a change
     answered = false, -- the terminal has reported at least one color
     noticed = false, -- the user has been told it has not
     announce = false, -- the next query's result is reported to the user
@@ -108,7 +117,11 @@ function App:attach()
       self.terminal.feed(sequence)
     end,
     focus = function()
+      self:unwatch()
       self:auto_sync("focus")
+    end,
+    blur = function()
+      self:watch()
     end,
     resume = function()
       self:auto_sync("resume")
@@ -146,6 +159,7 @@ function App:detach()
   stop(self, "cancel_retry")
   stop(self, "cancel_notice")
   stop(self, "cancel_saved_check")
+  self:unwatch()
   self.terminal.close()
   self.terminal = nil
   self.host.unsubscribe()
@@ -191,6 +205,35 @@ function App:auto_sync(reason)
   end
 end
 
+--- Focus left: follow theme changes nobody reports, such as a picker's previews.
+function App:watch()
+  if not (self.terminal and self.config.auto and self.host.ui_ready()) then
+    return
+  end
+  self.watching, self.quiet_ms = true, 0
+  self:next_watch()
+end
+
+function App:unwatch()
+  self.watching = false
+  stop(self, "cancel_watch")
+end
+
+--- The next ask, at a pace set by how long nothing has changed.
+function App:next_watch()
+  stop(self, "cancel_watch")
+  if self.quiet_ms >= WATCH.stop_after_ms then
+    self.watching = false
+    return
+  end
+  local ms = self.quiet_ms < WATCH.ease_after_ms and WATCH.fast_ms or WATCH.slow_ms
+  self.cancel_watch = self.host.after(ms, function()
+    self.cancel_watch = nil
+    self.quiet_ms = self.quiet_ms + ms
+    self:sync("watch") -- its reply schedules the next one
+  end)
+end
+
 --- Re-read the terminal. "manual" is the guaranteed path: it is what a keybind and
 --- `:ColorRex` both run, and the only reason that reports back.
 function App:sync(reason)
@@ -225,6 +268,10 @@ function App:settled(theme, outcome)
   local changed = self:accept(theme, completeness)
   self:schedule_retry(completeness)
   self:announce_result(completeness, changed)
+  if self.watching then
+    self.quiet_ms = changed and 0 or self.quiet_ms
+    self:next_watch()
+  end
 end
 
 --- A terminal that never answers gets one notice. This looks at answers rather than
@@ -257,8 +304,13 @@ end
 
 --- Compile a theme and show it if it differs. Returns true if it did.
 function App:adopt(theme)
-  local colorscheme = Compiler.compile(theme, self.config, self.host.background())
   self.source = "terminal"
+  -- The same reply as before, which is nearly every one while watching.
+  if self.colorscheme.background == self.host.background()
+    and Theme.serialize(theme) == Theme.serialize(self.colorscheme.theme) then
+    return false
+  end
+  local colorscheme = Compiler.compile(theme, self.config, self.host.background())
   if colorscheme.signature == self.colorscheme.signature then
     return false
   end

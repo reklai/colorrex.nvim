@@ -83,7 +83,8 @@ Use these words, in code and in prose.
 | settle | A query ends: with the reply, or at the timeout. |
 | attached | This colorscheme is active and listening. `App.terminal` exists exactly then. |
 | outcome | How a query settled: `reply`, `late reply`, `timeout`, `send failed`. |
-| reason | What started a sync: `launch`, `focus`, `resume`, `mode`, `background`, `manual`, `retry`, `broadcast`. |
+| reason | What started a sync: `launch`, `focus`, `resume`, `mode`, `background`, `manual`, `retry`, `broadcast`, `watch`. |
+| watch | Asking the terminal while focus is elsewhere, to follow changes nobody reports. |
 | saved theme | The last complete theme, in the state directory. It is what the first frame shows. |
 | broadcast | Another Neovim saving a theme, noticed by watching that file. |
 | sync | Run a query and repaint if the theme changed. |
@@ -209,10 +210,12 @@ with what arrived rather than all or nothing.
 autocommands do not nest. That is what makes ColorScheme fire, and so what makes
 lualine and every plugin that derives from highlights follow along.
 
-**No polling, and no data connection.** Polling would run forever to catch
-something rare. Rex's data connection does push theme changes, but it is the
-wrong trade for a colorscheme; see "Current Gaps" in `docs/sync.md`. `:ColorRex`
-is honest and costs nothing idle.
+**No endless polling, and no data connection.** Polling forever to catch something
+rare is the wrong trade, so a focused or idle Neovim asks nothing. The one exception
+is bounded: when focus leaves, Neovim watches for a minute at most, because that is
+when Rex's picker previews themes without a word to the block. Rex's data connection
+does push theme changes, but it is the wrong trade for a colorscheme; see "Current
+Gaps" in `docs/sync.md`. `:ColorRex` is honest and costs nothing idle.
 
 ## Tests, by what a failure means
 

@@ -456,6 +456,100 @@ T.test("app: manual sync with no terminal says so rather than hanging", function
   T.eq(#host.sent, 0)
 end)
 
+--- Run the clock in small steps for `ms`, answering every query with `theme`.
+--- Returns how many queries went out.
+local function answering(app, host, theme, ms)
+  local before = #host.sent
+  for _ = 1, ms / 10 do
+    local sent = #host.sent
+    host.advance(10)
+    if #host.sent > sent then
+      answer(app, theme)
+    end
+  end
+  return #host.sent - before
+end
+
+T.test("watch: an unfocused Neovim follows a theme nobody reports, such as a preview", function()
+  local app, host = start()
+  app:load()
+  answer(app, F.theme())
+  host.handlers.blur()
+  T.eq(answering(app, host, F.theme(), 30), 1, "asked within 30 ms")
+  answering(app, host, DRACULA, 30)
+  T.eq(host.shown.filled.bg, "#282a36")
+  answering(app, host, LIGHT, 30)
+  T.eq(host.shown.filled.bg, "#fafafa")
+end)
+
+T.test("watch: each ask waits for the last reply, so a silent link does not pile them up", function()
+  local app, host = start()
+  app:load()
+  answer(app, F.theme())
+  host.handlers.blur()
+  local sent = #host.sent
+  host.advance(30)
+  for _ = 1, 100 do
+    host.advance(10) -- a second, and the terminal never answers
+  end
+  -- One ask, its 500 ms timeout, the next 30 ms later, and its timeout still running.
+  T.eq(#host.sent - sent, 2)
+end)
+
+T.test("watch: eases off while nothing changes, then stops", function()
+  local app, host = start()
+  app:load()
+  answer(app, F.theme())
+  host.handlers.blur()
+  T.ok(answering(app, host, F.theme(), 1000) >= 25, "fast at first")
+  answering(app, host, F.theme(), 4500)
+  T.ok(answering(app, host, F.theme(), 1000) <= 4, "slower once nothing has changed for a while")
+  answering(app, host, F.theme(), 60000)
+  T.eq(answering(app, host, F.theme(), 5000), 0, "stopped")
+  T.eq(app.watching, false)
+end)
+
+T.test("watch: a change while easing off makes it fast again", function()
+  local app, host = start()
+  app:load()
+  answer(app, F.theme())
+  host.handlers.blur()
+  answering(app, host, F.theme(), 6000)
+  answering(app, host, DRACULA, 300)
+  T.eq(host.shown.filled.bg, "#282a36")
+  T.ok(answering(app, host, DRACULA, 1000) >= 25)
+end)
+
+T.test("watch: focus coming back stops it, and so does leaving", function()
+  local app, host = start()
+  app:load()
+  answer(app, F.theme())
+  host.handlers.blur()
+  answering(app, host, F.theme(), 100)
+  local sent = #host.sent
+  host.handlers.focus()
+  answer(app, F.theme())
+  answering(app, host, F.theme(), 1000)
+  T.eq(#host.sent - sent, 1, "only the focus sync itself")
+  host.handlers.blur()
+  host.handlers.leaving()
+  T.eq(answering(app, host, F.theme(), 1000), 0)
+end)
+
+T.test("watch: auto off, or no terminal, never watches", function()
+  local app, host = start()
+  app.config = Config.resolve({ auto = false })
+  app:load()
+  answer(app, F.theme())
+  host.handlers.blur()
+  T.eq(answering(app, host, F.theme(), 1000), 0)
+
+  local headless, headless_host = start({ ready = false })
+  headless:load()
+  headless_host.handlers.blur()
+  T.eq(answering(headless, headless_host, F.theme(), 1000), 0)
+end)
+
 T.test("explain: traces a color to its role and its slot", function()
   local app, host = start()
   app:load()

@@ -51,10 +51,12 @@ same in code, because they are. `:ColorRex status` shows every theme's exact id.
 ## Live theme changes
 
 Ghostty reports every config reload, so a new theme applies by itself. Rex reports
-only dark and light changes, so a change between two themes of the same brightness
-waits for the next focus change or `:ColorRex` (see [Rough edges](#rough-edges)).
-Run `:ColorRex` in one Neovim and every other Neovim on the machine checks its own
-terminal too.
+only dark and light changes, and nothing at all while its theme picker previews
+themes. So while focus is elsewhere, which it is while the picker is open, Neovim
+asks the terminal for its colors: every 30ms at first, every 250ms after 5 seconds
+with no change, and not at all after a minute with none. Previews show in your code
+as you move through the picker, a beat after the background. Run `:ColorRex` in one
+Neovim and every other Neovim on the machine checks its own terminal too.
 
 ## What has been checked
 
@@ -73,11 +75,14 @@ something nobody has seen yet.
 
 Known, and not fixed yet:
 
-- **In Rex, a change to a theme of the same brightness is not live.** Rex sends a
-  block nothing when a dark theme replaces another dark theme. It applies on the next
-  focus change, or the moment you run `:ColorRex`. A lone Neovim that is not focused
-  can wait several seconds for that focus change. [docs/sync.md](docs/sync.md) has
-  the details and the small Rex change that would fix it.
+- **Rex does not report most theme changes, so colorrex has to ask.** The picker is
+  covered: it takes focus, and Neovim watches while focus is away. The background
+  still changes a beat before the code colors, more over a slow link. A change made
+  some other way while Neovim is focused, such as from a script, waits for the next
+  focus change or `:ColorRex`. [docs/sync.md](docs/sync.md) has the details and the
+  small Rex change that would make all of this unnecessary.
+- **Watching is polling, if bounded.** Switching away from Neovim starts it, for a
+  minute at most, even when no theme is about to change.
 - **Selections, borders and popups are derived, not your theme's.** Terminals do not
   report those colors, so colorrex makes them from your foreground and background.
   They can differ from what the theme's author picked for their terminal.
@@ -186,7 +191,7 @@ require("colorrex").setup({
   contrast = 3.0,     -- minimum contrast for code, up to 4.5
   voice = true,       -- let a theme's cursor color lead its code
   chunks = false,     -- mark where each chunk of code starts
-  auto = true,        -- also sync on focus and dark/light changes
+  auto = true,        -- also sync on focus, dark/light changes and picker previews
 })
 ```
 

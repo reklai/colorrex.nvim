@@ -108,8 +108,11 @@ chunks          Mark where each chunk of code starts. The name on its first
                 its own.
 
 auto            Also sync on focus and on dark or light changes, and when
-                another Neovim on this machine saves a new theme. When false,
-                colors change only through |:ColorRex|.
+                another Neovim on this machine saves a new theme. While focus
+                is elsewhere, as it is while Rex's theme picker is open, also
+                ask the terminal for changes: every 30ms, every 250ms after 5
+                seconds with no change, and not at all after a minute with
+                none. When false, colors change only through |:ColorRex|.
 
 LUALINE                                                     *colorrex-lualine*
 

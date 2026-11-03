@@ -11,8 +11,8 @@ What happens between a theme existing in your terminal and it being on screen.
 3. The colorscheme is painted at once. The first frame never waits on the terminal.
 
 4. `App:attach()` creates the `terminal` machine and subscribes to `TermResponse`,
-   `FocusGained`, `VimResume`, `UIEnter`, `ColorScheme` and `VimLeavePre`, and to
-   changes to the saved theme.
+   `FocusGained`, `FocusLost`, `VimResume`, `UIEnter`, `ColorScheme` and
+   `VimLeavePre`, and to changes to the saved theme.
 
 5. When a terminal UI is ready, `App:sync("launch")` starts a query. During
    startup that is `UIEnter`. With no terminal attached, nothing is sent.
@@ -43,15 +43,39 @@ What happens between a theme existing in your terminal and it being on screen.
 12. A `partial` result is retried after 250ms, 1s and 3s, then no more. A Rex
     block usually gets its theme within 150ms. A `full` result ends the retries.
 
-13. After that there are no timers and no queries. Nothing runs until one of:
+13. After that there are no timers and no queries, except for the watch below.
+    Nothing runs until one of:
 
     | Trigger | Applies when |
     | --- | --- |
     | `:ColorRex`, or any key mapped to it | Always |
     | `FocusGained` or `VimResume` | `auto` is on |
+    | `FocusLost`, which starts a watch | `auto` is on |
     | Another Neovim on this machine saving a new theme | `auto` is on |
     | An OSC 11 reply, which means the terminal reported a change | `auto` is on |
     | Neovim re-sourcing `colors/colorrex.lua` with `'background'` flipped | `auto` is on |
+
+## While focus is elsewhere
+
+Rex's theme picker previews each theme as you move through it, and tells the block
+nothing. On Rex 0.1.0 (1763) the picker takes focus when it opens, and gives it
+back when it closes. So `FocusLost` starts a watch: `App:sync("watch")` asks the
+terminal 30ms after the last reply, and repaints when the theme differs. After 5s
+with no change it asks every 250ms, and after 60s with none it stops. Any change
+makes it fast again, and `FocusGained` or detaching ends it.
+
+Each ask waits for the reply to the last one, or its 500ms timeout, so a slow link
+slows the watch down rather than piling up queries. A reply that matches the
+theme already shown is compared as text and costs no compile.
+
+Measured in Rex with a real picker, a probe tab polling every 10ms, and Neovim
+asking every 30ms: a preview reached Neovim's code colors in a median of 13ms,
+against 78ms when asking every 150ms. Neovim's own part, asking, compiling and
+repainting, takes about 5ms. The rest is waiting for the next ask, and the
+network between the machine running Neovim and the one showing it.
+
+The background still moves first. It is the terminal's, so a preview paints it at
+once, and the code colors follow when the ask comes back.
 
 ## Between Neovims
 
@@ -99,9 +123,12 @@ detection, which leaves only the first. Both are covered in `test/e2e/rex.lua`.
 
 ## Current Gaps
 
-- **In Rex, same-brightness theme changes are not live.** A program in a block
-  hears nothing when a theme changes and the scheme does not: no mode 2031,
-  nothing on `rex events`, no session revision. They apply on the next focus
+- **In Rex, same-brightness theme changes are reported to nobody.** A program in
+  a block hears nothing when a theme changes and the scheme does not: no mode
+  2031, nothing on `rex events`, no session revision, and nothing as the picker
+  previews. Changes made through the picker are caught by the watch, because the
+  picker takes focus. A change made any other way while Neovim is focused, such
+  as from a script, or more than 60s after focus left, applies on the next focus
   change or `:ColorRex`. Ghostty has no such gap.
 
   Rex's data connection does push them. `data.connect` on a block streams its
@@ -117,12 +144,18 @@ detection, which leaves only the first. Both are covered in `test/e2e/rex.lua`.
   The real fix belongs in Rex and is small. libghostty leaves unsolicited reports
   to its host ("Hosts should gate unsolicited sends on mode 2031"), and Rex already
   links `ghostty_color_scheme_report_encode`. If `set_theme` sent that report when
-  it applies, as Ghostty does on reload, colorrex would need no change at all.
+  it applies, as Ghostty does on reload, colorrex would need no change at all,
+  and the watch could go. `rex block stream`, which might have carried the same
+  messages, is not implemented in Rex 0.1.0 (1763).
 
-- **A lone unfocused Neovim has no focus event coming.** Rex's theme picker
-  produced a focus event for the focused pane within 270ms in 12 of 14 observed
-  changes. The other 2, while Neovim was not focused, took 6 to 8 seconds. Another
-  Neovim noticing now covers this, but with none open it still waits.
+- **The watch is polling, if bounded.** It asks up to about 33 times a second for
+  5s after focus leaves, which is a few hundred bytes each way and well under a
+  millisecond of Neovim's time per reply. It ends within a minute of the last
+  change. Switching away from Neovim starts one even when no theme will change.
+
+- **A lone unfocused Neovim has no focus event coming.** Earlier Rex builds sent
+  none when the picker opened, and 2 of 14 observed changes waited 6 to 8 seconds.
+  Rex 0.1.0 (1763) sends `FocusLost` as the picker opens, which starts the watch.
 
 - **The nudge stops at the machine.** Neovims on different hosts have separate
   state files, so an SSH session does not hear about a local sync.
