@@ -23,6 +23,9 @@ M.defaults = {
   auto = true,
 }
 
+-- Options that were renamed, so an old config says what to write instead.
+local RENAMED = { force_unique = "voice" }
+
 --- Defaults merged with `opts`. Raises on a mistake, so a typo in setup() is
 --- reported at startup instead of silently doing nothing.
 function M.resolve(opts)
@@ -31,6 +34,9 @@ function M.resolve(opts)
     out[key] = value
   end
   for key, value in pairs(opts or {}) do
+    if RENAMED[key] then
+      error(("colorrex: option '%s' is now '%s'"):format(key, RENAMED[key]), 0)
+    end
     if M.defaults[key] == nil then
       error(("colorrex: unknown option '%s'"):format(tostring(key)), 0)
     end

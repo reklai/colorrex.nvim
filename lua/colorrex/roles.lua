@@ -1,7 +1,8 @@
 -- Decides what each of a theme's colors means in an editor: its roles.
 --
--- It keeps two promises that pull against each other: FAITHFUL (use the theme's
--- colors, keep its hues) and UNIQUE (tell tokens apart). The rules, in order:
+-- It keeps three promises that pull against each other: FAITHFUL (use the theme's
+-- colors, keep its hues), PRACTICAL (tell tokens apart) and VOICE (each theme looks
+-- like itself). The rules, in order:
 --
 --   1. fg and bg are the theme's and are never altered.
 --   2. Every syntax color comes from an ANSI slot. Nothing is invented.
@@ -281,7 +282,7 @@ local function pick_syntax(theme, floor, notes)
       break
     end
     notes[#notes + 1] = {
-      code = "unique.reassigned",
+      code = "practical.reassigned",
       message = ("ansi %d read like another color, so ansi %d took its place"):format(picks[best_name].slot, best.slot),
     }
     picks[best_name] = best
@@ -370,7 +371,7 @@ local function assign_styles(picks, notes)
     end
     if styles[name] ~= PLAIN then
       notes[#notes + 1] = {
-        code = "unique.style",
+        code = "practical.style",
         message = ("%s shares its color with another role; separated by style"):format(name),
       }
     end
@@ -451,7 +452,7 @@ local function accent_role(theme, roles, floor, notes)
     return { hex = hex, source = "cursor", from = hex ~= cursor and cursor or nil }
   end
   notes[#notes + 1] = {
-    code = "unique.accent",
+    code = "voice.accent",
     message = "the theme's cursor is not a color of its own; accent comes from the palette",
   }
   return chromatic(theme, 13) and from_slot(theme, 13, floor) or roles.func
@@ -486,7 +487,7 @@ function M.solve(theme, opts)
   local casting = Casting.CONVENTION
   if voice then
     notes[#notes + 1] = {
-      code = "unique.voice",
+      code = "voice.cursor",
       message = ("the cursor sits nearest ansi %d, so keywords lead in the %s voice"):format(voice.anchor, voice.name),
     }
   else
@@ -494,7 +495,7 @@ function M.solve(theme, opts)
     casting = Casting.cast(roles, roles.string.hex)
     if casting ~= Casting.CONVENTION then
       notes[#notes + 1] = {
-        code = "faithful.recast",
+        code = "practical.recast",
         message = "roles moved off the ANSI convention, which would have read as one color",
       }
     end

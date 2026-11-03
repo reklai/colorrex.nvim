@@ -78,7 +78,7 @@ T.test("promises: two roles alike in color and style are caught", function()
   local colorscheme = good()
   colorscheme.roles.func = colorscheme.roles.string
   colorscheme.styles.func = colorscheme.styles.string
-  T.ok(codes(colorscheme)["unique.collision"])
+  T.ok(codes(colorscheme)["practical.collision"])
 end)
 
 T.test("notes: each adjustment the solver makes leaves one", function()
@@ -91,7 +91,7 @@ T.test("notes: each adjustment the solver makes leaves one", function()
     end
     return false
   end
-  T.ok(has(F.theme({ cursor = false }), "unique.accent"))
+  T.ok(has(F.theme({ cursor = false }), "voice.accent"))
   T.ok(has(F.theme({ fg = "#303030", bg = "#fafafa" }), "faithful.lifted"))
   local ansi = F.theme().ansi
   ansi[8] = "#000000"
@@ -101,13 +101,13 @@ T.test("notes: each adjustment the solver makes leaves one", function()
     grey[slot] = "#808080"
   end
   grey[5], grey[4] = "#ff5555", "#ff5656"
-  T.ok(has({ fg = "#d0d0d0", bg = "#101010", ansi = grey }, "unique.style"))
+  T.ok(has({ fg = "#d0d0d0", bg = "#101010", ansi = grey }, "practical.style"))
   local pair = F.theme().ansi
   pair[4] = pair[5]
-  T.ok(has(F.theme({ ansi = pair }), "unique.reassigned"))
+  T.ok(has(F.theme({ ansi = pair }), "practical.reassigned"))
   local clash = F.theme().ansi
   clash[5], clash[4] = "#d29922", "#e3b341"
-  T.ok(has(F.theme({ ansi = clash }), "faithful.recast"))
+  T.ok(has(F.theme({ ansi = clash }), "practical.recast"))
   T.ok(Roles)
 end)
 

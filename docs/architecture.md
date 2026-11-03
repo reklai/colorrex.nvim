@@ -89,7 +89,8 @@ Use these words, in code and in prose.
 | sync | Run a query and repaint if the theme changed. |
 | repaint | Apply a colorscheme through `:colorscheme`. |
 | render | The host setting the highlights. |
-| note | A record of an adjustment made to a color or role. |
+| promise | One of three goals: `faithful`, `practical`, `voice`. |
+| note | A record of an adjustment made to a color or role. Its code starts with the promise it serves, such as `practical.style`. |
 | message | Text shown to the user through the host. |
 | host | The object `App` does everything through. |
 
@@ -139,7 +140,7 @@ own, and most themes with a look known from elsewhere leave the cursor neutral, 
 of 14 checked are unchanged. It applies to 255 of Ghostty's 819 themes, 225 of which
 differ from the convention, and to 31 of Rex's 42.
 
-The promise is two-sided, and both sides are tests: a difference you can see must
+The voice promise is two-sided, and both sides are tests: a difference you can see must
 show, and a difference you cannot see must not. Twins are not a failure when two
 themes have the same colors. Most of Ghostty's 152 do, and differ in their background.
 Terminal themes cannot say which color is a keyword, so an author's own mapping is
@@ -220,7 +221,7 @@ is honest and costs nothing idle.
 | `unit` | LuaJIT | A logic bug |
 | `conformance` | LuaJIT | A promise broke for a real theme |
 | `fault` | LuaJIT | Hostile input broke an invariant |
-| `architecture` | LuaJIT | A boundary was crossed |
+| `architecture` | LuaJIT | A boundary was crossed, or code and docs disagree on the promises |
 | `integration` | Neovim | The wiring into Neovim broke |
 | `e2e` | Neovim in Rex and Ghostty | It does not work on a real terminal |
 

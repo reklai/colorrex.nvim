@@ -3,16 +3,26 @@
 Compiles the theme your terminal is showing into a native Neovim colorscheme.
 No dependencies, no configuration, no theme files.
 
-The target is for libghostty-based terminal ecosystem. Currently other terminals are not supported.
+> **Early, and rough around the edges.** colorrex is young and has mostly been built
+> and tested on one person's setup. Expect bugs, themes that come out looking wrong,
+> and edge cases nobody has hit yet. The promises below are what it is trying to
+> keep. The tests hold it to them, but they are goals, not guarantees.
+> [Rough edges](#rough-edges) lists what is already known.
+
+It works only in terminals built on libghostty, which today means Ghostty and Rex.
+In any other terminal it stays grey and says so once.
 
 ```lua
 vim.cmd.colorscheme("colorrex")
 ```
 
-That is the whole setup. It asks your terminal for its 19 colors, in one request,
+That is the whole setup. It asks your terminal for its 19 colors in one request,
 and compiles them into over 300 highlight groups.
 
 ## The promises
+
+There are three: faithful, practical, and voice. They are goals. Each one is
+tested, and each one still has gaps.
 
 **Faithful.** Your foreground and background are never altered. Every syntax
 color is one of your theme's ANSI colors, unchanged unless it is unreadable. A
@@ -21,31 +31,93 @@ keeps its hue. Text also stays readable on whatever is behind it: a selection ea
 off until comments can be read through it, and colored text in a float is lifted
 against the float. `:ColorRex explain` shows where any color came from.
 
-**Useful.** Color goes where it tells you something the shape of the text does not.
-A field, a method and a variable are all just words, so color separates them. `=` and
-`self` can be read on sight and appear on nearly every line, so they stay quiet, and
-red is left to mean something.
+**Practical.** Color goes where it tells you something the shape of the text does
+not. A field, a method and a variable are all just words, so color separates them:
+fields get a color of their own, off the hues of keywords, functions and types, so
+`req.Body` shows which part is the object. Every pair of syntax roles can be told
+apart, by color where the palette allows and by weight or slant where it does not.
+`=` and `self` can be read on sight and appear on nearly every line, so they stay
+quiet, and red is left to mean something.
 
-**Unique.** Every theme looks like itself. Each of the twelve chromatic ANSI colors
-has a job on screen, and your cursor color is the accent. Fields get a color of their
-own, off the hues of keywords, functions and types, so `req.Body` shows which part is
-the object. A colored cursor sets the
-theme's voice, and otherwise roles follow the ANSI convention, the closest thing a
-terminal theme has to its author's intent. Either way they move only as far as it takes
-to keep code readable. So a difference you can see shows, a difference you cannot see
-almost never does, and a family of themes stays a family.
-Two themes with the same colors read the same in code, because they are. Roles the
-palette cannot separate by color differ by weight or slant, and `:ColorRex status`
-shows every theme's exact id.
+**Voice.** Every theme should look like itself. Each of the twelve chromatic ANSI
+colors has a job on screen, and your cursor color is the accent. A colored cursor sets
+the theme's voice: it takes the keywords, and the other roles arrange around it.
+Without one, roles follow the ANSI convention, the closest thing a terminal theme has
+to its author's intent. Either way they move only as far as it takes to keep code
+readable. So a difference you can see shows, a difference you cannot see almost never
+does, and a family of themes stays a family. Two themes with the same colors read the
+same in code, because they are. `:ColorRex status` shows every theme's exact id.
 
-**Dynamic.** Ghostty reports every config reload, so theme changes apply by
-themselves. Rex reports dark and light changes; a change to a theme of the same
-brightness sends no signal to a block, so those apply on the next focus change,
-or the moment you run `:ColorRex`. Run it in one Neovim and every other Neovim on
-the machine checks its own terminal too.
+## Live theme changes
 
-These are not just claims. `test/conformance` holds them against all 819 themes
-Ghostty ships, and `test/fault` against 20,000 random palettes.
+Ghostty reports every config reload, so a new theme applies by itself. Rex reports
+only dark and light changes, so a change between two themes of the same brightness
+waits for the next focus change or `:ColorRex` (see [Rough edges](#rough-edges)).
+Run `:ColorRex` in one Neovim and every other Neovim on the machine checks its own
+terminal too.
+
+## What has been checked
+
+`test/conformance` holds the promises against all 819 themes Ghostty ships, and
+`test/fault` against 20,000 random palettes. That proves the rules hold as they are
+written. It does not prove the result looks right: at one point every Rex theme
+passed while types came out red in six light themes, and only looking at real code
+caught it.
+
+So colorrex is also checked by eye, in real Neovim with language servers attached,
+across Rex's 42 built-in themes, dark and light, in Go, TypeScript, Python, Lua,
+Zig, Rust, C and Odin. A theme or language outside that set is more likely to show
+something nobody has seen yet.
+
+## Rough edges
+
+Known, and not fixed yet:
+
+- **In Rex, a change to a theme of the same brightness is not live.** Rex sends a
+  block nothing when a dark theme replaces another dark theme. It applies on the next
+  focus change, or the moment you run `:ColorRex`. A lone Neovim that is not focused
+  can wait several seconds for that focus change. [docs/sync.md](docs/sync.md) has
+  the details and the small Rex change that would fix it.
+- **Selections, borders and popups are derived, not your theme's.** Terminals do not
+  report those colors, so colorrex makes them from your foreground and background.
+  They can differ from what the theme's author picked for their terminal.
+- **The voice is colorrex's opinion.** When a theme gives its cursor a color, that
+  color takes the keywords. A theme you know from another editor can look different
+  here. `voice = false` turns this off.
+- **Small palettes give less.** In a theme with no spare color, fields stay plain
+  text. That is 4 of Rex's 42 themes. Monochrome themes separate code by bold and
+  italic alone. Themes whose palettes are nearly identical look nearly identical.
+- **No parser means less color, and sometimes different color.** Without Treesitter,
+  Neovim falls back to its old regex syntax files. Some configs turn Treesitter off
+  for large files. Those files get coarser highlighting, and a few words can differ
+  in color from the same file with a parser. Word operators such as `new` and `and`
+  are aligned for TypeScript, JavaScript, Python, Lua, C and C++ only.
+- **Plugin coverage is short.** Telescope, blink.cmp, which-key, Trouble, oil,
+  mini.indentscope, fidget, Mason, lazy.nvim and gitsigns have groups of their own.
+  Other plugins get whatever their own defaults link to, which usually works and is
+  not checked.
+- **Ghostty settings can get in the way.** `minimum-contrast` makes Ghostty recolor
+  text as it draws, so the screen can differ from `:ColorRex explain`. With
+  `osc-color-report-format = none`, a reload waits for a focus change.
+- **Rex is in beta.** Its behavior can change under colorrex.
+- **`chunks` is an experiment.** It is off by default.
+
+Not tried, so expect surprises:
+
+- tmux, zellij or any other multiplexer between Neovim and the terminal.
+- SSH: it should work, but latency is unmeasured. A slow reply still applies when
+  it arrives, but `:ColorRex` may first say the terminal did not answer.
+- Theme changes from a keybind or automatic dark mode. Only Rex's theme picker
+  and Ghostty reloads have been watched.
+
+## Reporting a problem
+
+Bugs are expected, and reports help. Please include:
+
+- the output of `:ColorRex status`, which has the theme's exact id
+- `:ColorRex check`
+- `:ColorRex explain` with the cursor on a word that looks wrong
+- your terminal and its version, your Neovim version, and a screenshot
 
 ## Commands
 
@@ -66,7 +138,7 @@ vim.keymap.set("n", "<leader>ts", "<Plug>(colorrex)")
 
 ## Install
 
-You need Neovim 0.12 or newer and a libghostty terminal. With
+You need Neovim 0.12 or newer, and Ghostty or Rex. With
 [lazy.nvim](https://github.com/folke/lazy.nvim), this one line is the whole install:
 
 ```lua
@@ -147,3 +219,6 @@ make test     # everything but real terminals
 make e2e      # real Neovim in real Rex blocks and Ghostty windows
 make matrix   # all of it, against Neovim 0.11.7, 0.12.0, stable and nightly
 ```
+
+The matrix includes 0.11.7 to prove an older Neovim is refused cleanly, not to
+support it.

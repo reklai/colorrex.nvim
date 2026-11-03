@@ -4,8 +4,10 @@
 -- against every theme we can find, and at runtime in `:ColorRex check` against
 -- whatever theme you are looking at, so both use the same definition.
 --
--- DYNAMIC is the third promise and is about time, not one colorscheme, so it lives
--- in test/e2e. This file judges the other two.
+-- This file judges FAITHFUL and PRACTICAL, which hold for one colorscheme. VOICE is
+-- about how themes differ from one another, so test/conformance judges it across
+-- every theme at once. Following live theme changes is not a promise; test/e2e
+-- covers it.
 local Color = require("colorrex.color")
 local Roles = require("colorrex.roles")
 
@@ -135,12 +137,12 @@ function M.check(colorscheme, opts)
     end
   end
 
-  -- UNIQUE: every pair of syntax roles can be told apart. ---------------------------
+  -- PRACTICAL: every pair of syntax roles can be told apart. ------------------------
   for i = 1, #Roles.SYNTAX do
     for j = i + 1, #Roles.SYNTAX do
       local a, b = Roles.SYNTAX[i].name, Roles.SYNTAX[j].name
       if Color.distance(roles[a].hex, roles[b].hex) < Color.DISTINCT and Roles.same_style(styles[a], styles[b]) then
-        fail("unique.collision", ("%s and %s look identical"):format(a, b))
+        fail("practical.collision", ("%s and %s look identical"):format(a, b))
       end
     end
   end

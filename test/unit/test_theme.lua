@@ -248,7 +248,7 @@ T.test("voice: says why, and leaves the comment and the accent alone", function(
   T.eq(voiced.roles.accent.hex, plain.roles.accent.hex)
   local said
   for _, note in ipairs(voiced.notes) do
-    said = said or (note.code == "unique.voice" and note.message)
+    said = said or (note.code == "voice.cursor" and note.message)
   end
   T.ok(said and said:find("ansi 4", 1, true) and said:find("blue voice", 1, true), tostring(said))
 end)
@@ -365,7 +365,7 @@ T.test("property: a monochrome theme keeps fields as text", function()
   T.eq(compiled.roles.property.hex, compiled.filled.fg)
 end)
 
-T.test("useful: what shape already says stays quiet", function()
+T.test("practical: what shape already says stays quiet", function()
   local compiled = Compiler.compile(F.theme({ cursor = false }), Config.resolve())
   local G, R = compiled.groups, compiled.roles
   for _, group in ipairs({ "Operator", "@operator", "@lsp.type.operator", "@variable.builtin", "@variable.parameter.builtin" }) do
@@ -373,7 +373,7 @@ T.test("useful: what shape already says stays quiet", function()
   end
 end)
 
-T.test("useful: red means something, so a builtin is what it is", function()
+T.test("practical: red means something, so a builtin is what it is", function()
   local compiled = Compiler.compile(F.theme({ cursor = false }), Config.resolve())
   local G, R = compiled.groups, compiled.roles
   T.eq(G["@function.builtin"].fg, R.func.hex)
@@ -382,7 +382,7 @@ T.test("useful: red means something, so a builtin is what it is", function()
   T.eq(G["@attribute.builtin"].fg, R.type.hex)
 end)
 
-T.test("useful: words that only color can separate keep it", function()
+T.test("practical: words that only color can separate keep it", function()
   local compiled = Compiler.compile(F.theme({ cursor = false }), Config.resolve())
   local G, R = compiled.groups, compiled.roles
   T.eq(G["@property"].fg, R.property.hex)

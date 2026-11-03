@@ -13,6 +13,27 @@ Requires Neovim 0.12 or newer and a libghostty terminal, such as Ghostty or
 Rex. Other terminals are not supported: colorrex stays grey there, and says
 so once at startup.
 
+colorrex is early and has rough edges. Expect bugs and themes that come out
+wrong; the README lists what is known.
+
+PROMISES                                                   *colorrex-promises*
+
+There are three. They are goals: each is tested, and each still has gaps.
+|:ColorRex| check judges the current theme against them, and every adjustment
+it lists is named after the promise it serves.
+
+faithful        Your foreground and background are never altered, and every
+                syntax color is one of your theme's ANSI colors. A color too
+                faint to read moves in lightness only, the minimum needed.
+
+practical       Color goes where it tells you something the shape of the text
+                does not. Fields, methods and variables differ, every pair of
+                syntax roles can be told apart, and `=` and `self` stay quiet.
+
+voice           Every theme should look like itself. A cursor with a color of its own
+                takes the keywords, a difference you can see shows, and a
+                family of themes stays a family.
+
 COMMANDS                                                           *:ColorRex*
 
 :ColorRex               Read the terminal's theme and repaint if it changed.
@@ -27,7 +48,8 @@ COMMANDS                                                           *:ColorRex*
                         Show where a highlight group's color came from. With
                         no group, uses the one under the cursor.
 
-:ColorRex check         Judge the current theme against the promises.
+:ColorRex check         Judge the current theme against |colorrex-promises|,
+                        and list every adjustment that was needed.
 
 :ColorRex[!] compile [name]
                         Write the current theme to colors/{name}.lua in your
@@ -55,6 +77,7 @@ also turns the colorscheme on.
       transparent = true,
       contrast = 3.0,
       voice = true,
+      chunks = false,
       auto = true,
     })
 <
@@ -72,7 +95,8 @@ voice           Give each theme its own voice. A cursor with a color of its
                 palettes and cursors stay alike. A theme whose cursor is not a
                 color of its own is unchanged, which is most themes with a look
                 known from elsewhere. When false, roles always follow the ANSI
-                convention and move only to keep code readable.
+                convention and move only to keep code readable. Renamed from
+                `force_unique`, which now raises an error naming it.
 
 chunks          Mark where each chunk of code starts. The name on its first
                 line stands out, so a file can be scanned by its shape. A chunk

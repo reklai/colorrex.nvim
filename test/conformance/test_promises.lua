@@ -97,7 +97,7 @@ T.test("promises: every Ghostty theme, at both contrast settings", function()
   print(("  %d themes kept the promises"):format(count))
 end)
 
-T.test("unique: a theme's color stays off screen only if it would look like one that is on it", function()
+T.test("voice: a theme's color stays off screen only if it would look like one that is on it", function()
   -- All twelve chromatic slots, in every theme: edit one and something on screen
   -- must change. The one exception is the solver doing its job: if the new color
   -- would read as a color already showing, leaving it out is what keeps tokens
@@ -260,7 +260,7 @@ T.test("identity: a theme keeps as much color as it came with", function()
   T.ok(faded <= FADED_LIMIT, ("%d themes"):format(faded))
 end)
 
-T.test("unique: types and numbers do not share a hue", function()
+T.test("practical: types and numbers do not share a hue", function()
   local Color = require("colorrex.color")
   local themes = corpus()
   if next(themes) == nil then
@@ -487,7 +487,7 @@ T.test("identity: every theme has a stable id of its own", function()
   print(("  %d themes, each with an id"):format(count))
 end)
 
-T.test("unique: a style only separates colors when the palette truly cannot", function()
+T.test("practical: a style only separates colors when the palette truly cannot", function()
   -- Keeping the promise is not enough. Styles alone would satisfy it for every
   -- theme and leave hundreds of them flat, so this bounds how often they are
   -- needed. It only moves down: raising it means the solver got worse.
@@ -516,7 +516,7 @@ T.test("unique: a style only separates colors when the palette truly cannot", fu
   T.ok(flat / total <= 0.05, ("%d of %d themes"):format(flat, total))
 end)
 
-T.test("unique: a role with a spare color takes it instead of sharing", function()
+T.test("practical: a role with a spare color takes it instead of sharing", function()
   local theme = {
     fg = "#d0d0d0", bg = "#101010",
     ansi = { [0] = "#000000", [1] = "#ff5555", [2] = "#55ff55", [3] = "#ffff55", [4] = "#5555ff", [5] = "#5555ff",

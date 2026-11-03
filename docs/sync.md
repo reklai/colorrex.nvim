@@ -144,5 +144,7 @@ detection, which leaves only the first. Both are covered in `test/e2e/rex.lua`.
 - **Latency over SSH is unmeasured.** A slow reply still applies when it arrives,
   but a manual sync would report that the terminal did not answer.
 
-- **Contrast is measured against the background only.** A color on a tinted
-  surface such as `Visual` is not separately held to the floor.
+- **Contrast on surfaces is only partly checked.** Code and comments are held to a
+  floor on the selection and the cursor line, and colored text in a float and a
+  picker's matched letters are lifted for what they sit on. A group that sets no
+  background of its own and is drawn over any other surface is not checked.
