@@ -7,3 +7,6 @@ doc/tags
 
 # Dependencies CI fetches. Nothing in the plugin uses them.
 .deps/
+
+# Working notes for contributors, kept locally and out of the repository.
+docs/

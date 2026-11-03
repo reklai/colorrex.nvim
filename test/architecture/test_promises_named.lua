@@ -72,9 +72,17 @@ end)
 
 T.test("promises: retired names appear only where a rename is explained", function()
   local allowed = { ["lua/colorrex/config.lua"] = true, ["doc/colorrex.txt"] = true }
-  local paths = { "README.md", "doc/colorrex.txt", "docs/architecture.md", "docs/sync.md" }
+  local paths = { "README.md", "doc/colorrex.txt" }
   for _, path in ipairs(lua_files()) do
     paths[#paths + 1] = path
+  end
+  -- Working notes in docs/ are kept locally, out of the repository, so a clone has none.
+  for _, path in ipairs({ "docs/architecture.md", "docs/sync.md", "docs/known-issues.md" }) do
+    local file = io.open(T.root .. "/" .. path)
+    if file then
+      file:close()
+      paths[#paths + 1] = path
+    end
   end
   for _, path in ipairs(paths) do
     local text = read(path)

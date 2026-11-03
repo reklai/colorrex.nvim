@@ -3,11 +3,10 @@
 Compiles the theme your terminal is showing into a native Neovim colorscheme.
 No dependencies, no configuration, no theme files.
 
-> **Early, and rough around the edges.** colorrex is young and has mostly been built
-> and tested on one person's setup. Expect bugs, themes that come out looking wrong,
-> and edge cases nobody has hit yet. The promises below are what it is trying to
-> keep. The tests hold it to them, but they are goals, not guarantees.
-> [Rough edges](#rough-edges) lists what is already known.
+> **Early days.** colorrex is young and has mostly been built and tested on one
+> person's setup, so expect bugs and edge cases nobody has hit yet. The promises
+> below are what it is working toward, and the tests hold it to them. If something
+> looks wrong, please [report it](#reporting-a-problem).
 
 It works only in terminals built on libghostty, which today means Ghostty and Rex.
 In any other terminal it stays grey and says so once.
@@ -21,8 +20,8 @@ and compiles them into over 300 highlight groups.
 
 ## The promises
 
-There are three: faithful, practical, and voice. They are goals. Each one is
-tested, and each one still has gaps.
+There are three: faithful, practical, and voice. They are goals, and each one is
+tested.
 
 **Faithful.** Your foreground and background are never altered. Every syntax
 color is one of your theme's ANSI colors, unchanged unless it is unreadable. A
@@ -55,69 +54,20 @@ only dark and light changes, and nothing at all while its theme picker previews
 themes. So while focus is elsewhere, which it is while the picker is open, Neovim
 asks the terminal for its colors: every 30ms at first, every 250ms after 5 seconds
 with no change, and not at all after a minute with none. Previews show in your code
-as you move through the picker, a beat after the background. Run `:ColorRex` in one
-Neovim and every other Neovim on the machine checks its own terminal too.
+as you move through the picker. Run `:ColorRex` in one Neovim and every other
+Neovim on the machine checks its own terminal too.
 
-## What has been checked
+## How it is tested
 
 `test/conformance` holds the promises against all 819 themes Ghostty ships, and
-`test/fault` against 20,000 random palettes. That proves the rules hold as they are
-written. It does not prove the result looks right: at one point every Rex theme
-passed while types came out red in six light themes, and only looking at real code
-caught it.
-
-So colorrex is also checked by eye, in real Neovim with language servers attached,
-across Rex's 42 built-in themes, dark and light, in Go, TypeScript, Python, Lua,
-Zig, Rust, C and Odin. A theme or language outside that set is more likely to show
-something nobody has seen yet.
-
-## Rough edges
-
-Known, and not fixed yet:
-
-- **Rex does not report most theme changes, so colorrex has to ask.** The picker is
-  covered: it takes focus, and Neovim watches while focus is away. The background
-  still changes a beat before the code colors, more over a slow link. A change made
-  some other way while Neovim is focused, such as from a script, waits for the next
-  focus change or `:ColorRex`. [docs/sync.md](docs/sync.md) has the details and the
-  small Rex change that would make all of this unnecessary.
-- **Watching is polling, if bounded.** Switching away from Neovim starts it, for a
-  minute at most, even when no theme is about to change.
-- **Selections, borders and popups are derived, not your theme's.** Terminals do not
-  report those colors, so colorrex makes them from your foreground and background.
-  They can differ from what the theme's author picked for their terminal.
-- **The voice is colorrex's opinion.** When a theme gives its cursor a color, that
-  color takes the keywords. A theme you know from another editor can look different
-  here. `voice = false` turns this off.
-- **Small palettes give less.** In a theme with no spare color, fields stay plain
-  text. That is 4 of Rex's 42 themes. Monochrome themes separate code by bold and
-  italic alone. Themes whose palettes are nearly identical look nearly identical.
-- **No parser means less color, and sometimes different color.** Without Treesitter,
-  Neovim falls back to its old regex syntax files. Some configs turn Treesitter off
-  for large files. Those files get coarser highlighting, and a few words can differ
-  in color from the same file with a parser. Word operators such as `new` and `and`
-  are aligned for TypeScript, JavaScript, Python, Lua, C and C++ only.
-- **Plugin coverage is short.** Telescope, blink.cmp, which-key, Trouble, oil,
-  mini.indentscope, fidget, Mason, lazy.nvim and gitsigns have groups of their own.
-  Other plugins get whatever their own defaults link to, which usually works and is
-  not checked.
-- **Ghostty settings can get in the way.** `minimum-contrast` makes Ghostty recolor
-  text as it draws, so the screen can differ from `:ColorRex explain`. With
-  `osc-color-report-format = none`, a reload waits for a focus change.
-- **Rex is in beta.** Its behavior can change under colorrex.
-- **`chunks` is an experiment.** It is off by default.
-
-Not tried, so expect surprises:
-
-- tmux, zellij or any other multiplexer between Neovim and the terminal.
-- SSH: it should work, but latency is unmeasured. A slow reply still applies when
-  it arrives, but `:ColorRex` may first say the terminal did not answer.
-- Theme changes from a keybind or automatic dark mode. Only Rex's theme picker
-  and Ghostty reloads have been watched.
+`test/fault` against 20,000 random palettes. Passing rules is not the same as
+looking right, so colorrex is also checked by eye, in real Neovim with language
+servers attached, across Rex's 42 built-in themes, dark and light, in Go,
+TypeScript, Python, Lua, Zig, Rust, C and Odin.
 
 ## Reporting a problem
 
-Bugs are expected, and reports help. Please include:
+Reports help most with these attached:
 
 - the output of `:ColorRex status`, which has the theme's exact id
 - `:ColorRex check`
@@ -215,9 +165,8 @@ nearest red gives way to the function color, because red is left to errors.
 
 Like libghostty, the part that does the work knows nothing about its host. Only
 `lua/colorrex/neovim.lua` has side effects; the compiler and the terminal
-protocol run under plain LuaJIT. See [docs/architecture.md](docs/architecture.md)
-for the map and the vocabulary, and [docs/sync.md](docs/sync.md) for the exact
-sequence and its known gaps.
+protocol run under plain LuaJIT. `test/architecture` pins which module may
+depend on which.
 
 ```sh
 make test     # everything but real terminals

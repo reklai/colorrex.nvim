@@ -13,12 +13,12 @@ Requires Neovim 0.12 or newer and a libghostty terminal, such as Ghostty or
 Rex. Other terminals are not supported: colorrex stays grey there, and says
 so once at startup.
 
-colorrex is early and has rough edges. Expect bugs and themes that come out
-wrong; the README lists what is known.
+colorrex is young, so expect bugs and edge cases nobody has hit yet. If
+something looks wrong, please report it with the output of |:ColorRex| status.
 
 PROMISES                                                   *colorrex-promises*
 
-There are three. They are goals: each is tested, and each still has gaps.
+There are three. They are goals, and each one is tested.
 |:ColorRex| check judges the current theme against them, and every adjustment
 it lists is named after the promise it serves.
 
