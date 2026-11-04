@@ -68,14 +68,6 @@ with no change, and not at all after a minute with none. Previews show in your c
 as you move through the picker. Run `:ColorRex` in one Neovim and every other
 Neovim on the machine checks its own terminal too.
 
-## How it is tested
-
-`test/conformance` holds the promises against all 819 themes Ghostty ships, and
-`test/fault` against 20,000 random palettes. Passing rules is not the same as
-looking right, so colorrex is also checked by eye, in real Neovim with language
-servers attached, across Rex's 42 built-in themes, dark and light, in Go,
-TypeScript, Python, Lua, Zig, Rust, C and Odin.
-
 ## Reporting a problem
 
 Reports help most with these attached:
