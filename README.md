@@ -3,6 +3,13 @@
 Compiles the theme your terminal is showing into a native Neovim colorscheme.
 No dependencies, no configuration, no theme files.
 
+<p align="center">
+  <img src="assets/colorrex.gif" width="480"
+       alt="The same Go file in Neovim, shown under eight terminal themes in turn, its code colors changing with each">
+</p>
+<p align="center"><sub>One file under eight Ghostty themes. Each frame is a real Neovim screen, captured
+from a terminal set to that theme, with no other configuration.</sub></p>
+
 > **Early days.** colorrex is young and has mostly been built and tested on one
 > person's setup, so expect bugs and edge cases nobody has hit yet. The promises
 > below are what it is working toward, and the tests hold it to them. If something
@@ -45,6 +52,11 @@ to its author's intent. Either way they move only as far as it takes to keep cod
 readable. So a difference you can see shows, a difference you cannot see almost never
 does, and a family of themes stays a family. Two themes with the same colors read the
 same in code, because they are. `:ColorRex status` shows every theme's exact id.
+
+<p align="center">
+  <img src="assets/themes.png" width="820"
+       alt="One Go function in six themes: Catppuccin Mocha, Gruvbox Dark, TokyoNight, Kanagawa Wave, Rose Pine Dawn and Gruvbox Light">
+</p>
 
 ## Live theme changes
 
