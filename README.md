@@ -1,6 +1,6 @@
 # colorrex.nvim
 
-Compiles the theme your terminal is showing into a native Neovim colorscheme.
+Compiles the theme your Ghostty / Rex Terminal is showing into a native Neovim colorscheme.
 No dependencies, no configuration, no theme files.
 
 <p align="center">
