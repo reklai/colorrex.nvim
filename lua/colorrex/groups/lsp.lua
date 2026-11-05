@@ -3,8 +3,8 @@ return function(define)
   local link, syn, each = define.link, define.syn, define.each
   local G = {}
 
-  each(G, { "LspReferenceText", "LspReferenceRead", "LspReferenceTarget" }, { bg = "subtle" })
-  G.LspReferenceWrite = { bg = "subtle", underline = true }
+  each(G, { "LspReferenceText", "LspReferenceRead", "LspReferenceTarget" }, { bg = "reference" })
+  G.LspReferenceWrite = { bg = "reference", underline = true }
   G.LspInlayHint = { fg = "comment" }
   G.LspCodeLens = { fg = "comment" }
   G.LspCodeLensSeparator = { fg = "border" }

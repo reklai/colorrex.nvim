@@ -23,6 +23,17 @@ local DECORATION, DECORATION_ALT = "Border$", "Separator$"
 -- the selection moves: a picker's matched letters. The surface the list sits on.
 local OVER_SELECTION = { TelescopeMatching = "base", BlinkCmpLabelMatch = "element" }
 
+-- A group that sets a fill and no text lies under whatever text is there, which is
+-- code more often than not. These are the exceptions: nothing is ever read on them.
+local TEXTLESS = { FloatShadow = true, FloatShadowThrough = true, PmenuSbar = true, PmenuThumb = true, TabLineFill = true }
+
+-- Fills that do set their text, and still have code drawn on them by others: hover
+-- docs and completion previews highlight code in a float.
+local HOSTS_CODE = { "NormalFloat" }
+
+-- Surfaces drawn on the cursor line, which must still show there.
+local OVER_CURSORLINE = { visual = "a selection", reference = "a reference" }
+
 --- Judge one compiled colorscheme. Returns a list of failures; empty means kept.
 function M.check(colorscheme, opts)
   local failures = {}
@@ -99,17 +110,39 @@ function M.check(colorscheme, opts)
   local text = Roles.surface_text(roles, bg)
   for name, role in pairs(roles) do
     if role.least then
-      local faint = Roles.unreadable_on(text, role.hex)
+      local faint = Roles.unreadable_on(Roles.text_on(text, role.holds), role.hex)
       if faint and Roles.can_ease(bg, role.over, role.mix, role.least) then
         fail("faithful.surface", ("%s is too faint on %s, which could ease off"):format(faint.name, name))
       end
     end
   end
 
+  -- The check above only reaches surfaces that ease. One that code lies under and
+  -- that never eases would pass unjudged, so it is a failure in itself.
+  local function under_code(name, surface)
+    local role = roles[surface]
+    if role and not role.least then
+      fail("faithful.surface", ("%s lies under code on %s, which never eases"):format(name, surface))
+    end
+  end
+  for name, spec in pairs(colorscheme.group_specs or {}) do
+    if spec.bg and not spec.fg and not TEXTLESS[name] then
+      under_code(name, spec.bg)
+    end
+  end
+  for _, name in ipairs(HOSTS_CODE) do
+    local spec = colorscheme.group_specs and colorscheme.group_specs[name]
+    if spec and spec.bg then
+      under_code(name, spec.bg)
+    end
+  end
+
   -- By strength and not by contrast: with fg and bg at equal luminance the two differ
   -- only in hue, and contrast reads that as rounding noise around 1.00:1.
-  if roles.visual.mix <= roles.cursorline.mix then
-    fail("faithful.surface", "a selection is fainter than the cursor line")
+  for name, what in pairs(OVER_CURSORLINE) do
+    if roles[name].mix <= roles.cursorline.mix then
+      fail("faithful.surface", what .. " is fainter than the cursor line")
+    end
   end
 
   local function too_faint(text, fill)

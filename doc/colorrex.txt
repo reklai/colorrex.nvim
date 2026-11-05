@@ -25,6 +25,8 @@ it lists is named after the promise it serves.
 faithful        Your foreground and background are never altered, and every
                 syntax color is one of your theme's ANSI colors. A color too
                 faint to read moves in lightness only, the minimum needed.
+                Code stays readable on what is behind it: a selection,
+                reference, snippet placeholder or float eases off for it.
 
 practical       Color goes where it tells you something the shape of the text
                 does not. Fields, methods and variables differ, every pair of

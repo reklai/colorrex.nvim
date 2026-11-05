@@ -67,11 +67,17 @@ M.PALETTE = {
 -- with `least` lies under whatever syntax happens to be there, so it cannot choose its
 -- text. It eases off instead, keeping at least that much contrast with the background,
 -- because a selection you cannot see is worse than one that is hard to read through.
+-- A float counts: hover docs and completion previews draw highlighted code on it.
+-- `subtle` and `reference` start alike, but nothing is ever read through a scrollbar.
+-- `holds` narrows the text a surface is judged by, when it can only ever lie under
+-- some of it: a reference marks a name, and never a comment, keyword or string.
+local NAMES = { "fg", "func", "type", "property", "number" } -- enum members and constants wear number
 local SURFACES = {
   { name = "cursorline", over = "fg", mix = 0.05, least = 1.04 },
-  { name = "element", over = "fg", mix = 0.08 },
+  { name = "element", over = "fg", mix = 0.08, least = 1.06 },
   { name = "statusline", over = "fg", mix = 0.10 },
   { name = "subtle", over = "fg", mix = 0.14 },
+  { name = "reference", over = "fg", mix = 0.14, least = 1.1, holds = NAMES },
   { name = "visual", over = "fg", mix = 0.18, least = 1.2 },
   { name = "border", over = "fg", mix = 0.24 },
   { name = "border_strong", over = "fg", mix = 0.40 },
@@ -80,7 +86,7 @@ local SURFACES = {
   { name = "diff_delete", over = "error", mix = 0.16 },
   { name = "diff_change", over = "warn", mix = 0.14, least = 1.1 },
   { name = "diff_text", over = "warn", mix = 0.30 },
-  { name = "accent_soft", over = "accent", mix = 0.18 },
+  { name = "accent_soft", over = "accent", mix = 0.18, least = 1.2 },
 }
 
 -- How readable text must stay on those surfaces. Lower than `contrast`, which is
@@ -395,6 +401,23 @@ function M.surface_text(roles, bg)
   return text
 end
 
+--- The part of `text` a surface can lie under: all of it, unless it `holds` less.
+function M.text_on(text, holds)
+  if not holds then
+    return text
+  end
+  local wanted, out = {}, {}
+  for _, name in ipairs(holds) do
+    wanted[name] = true
+  end
+  for _, item in ipairs(text) do
+    if wanted[item.name] then
+      out[#out + 1] = item
+    end
+  end
+  return out
+end
+
 --- The first text that is too faint on `hex`, if any.
 function M.unreadable_on(text, hex)
   for _, item in ipairs(text) do
@@ -412,6 +435,7 @@ end
 
 --- As much of `surface` as the text on it allows. Returns the mix it settled on.
 local function eased_mix(surface, over, bg, text)
+  text = M.text_on(text, surface.holds)
   local mix = surface.mix
   while M.unreadable_on(text, Color.mix(bg, over, mix)) and M.can_ease(bg, over, mix, surface.least) do
     mix = mix - EASE_STEP
@@ -532,6 +556,7 @@ function M.solve(theme, opts)
       over = over,
       mix = mix,
       least = surface.least,
+      holds = surface.holds,
     }
     if mix ~= surface.mix then
       notes[#notes + 1] = {

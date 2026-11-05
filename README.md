@@ -32,9 +32,10 @@ There are three: faithful, practical, and voice. They are goals to work towards.
 **Faithful.** Your foreground and background are never altered. Every syntax
 color is one of your theme's ANSI colors, unchanged unless it is unreadable. A
 color below 3:1 contrast moves in lightness only, the minimum needed, so it
-keeps its hue. Text also stays readable on whatever is behind it: a selection eases
-off until comments can be read through it, and colored text in a float is lifted
-against the float. `:ColorRex explain` shows where any color came from.
+keeps its hue. Text also stays readable on whatever is behind it: a selection, a
+highlighted reference, a snippet placeholder and a float all ease off until code and
+comments can be read through them, and colored text in a float is lifted against the
+float. `:ColorRex explain` shows where any color came from.
 
 **Practical.** Color goes where it tells you something the shape of the text does
 not. A field, a method and a variable are all just words, so color separates them:

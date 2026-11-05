@@ -97,6 +97,41 @@ T.test("promises: every Ghostty theme, at both contrast settings", function()
   print(("  %d themes kept the promises"):format(count))
 end)
 
+T.test("surface: what code lies under eases for it, and can still be seen", function()
+  local Color = require("colorrex.color")
+  local themes = corpus()
+  if next(themes) == nil then
+    T.skip("no theme corpus at " .. CORPUS)
+  end
+  local eased, names = {}, {}
+  for name, theme in pairs(themes) do
+    local colorscheme = Compiler.compile(theme, OPTS)
+    local bg = colorscheme.filled.bg
+    for _, note in ipairs(colorscheme.notes) do
+      local surface, from, to = note.message:match("^(%S+) eased from (%d+)%% to (%d+)%%")
+      if note.code == "faithful.surface" and surface then
+        local role = colorscheme.roles[surface]
+        if not eased[surface] then
+          eased[surface], names[#names + 1] = 0, surface
+        end
+        eased[surface] = eased[surface] + 1
+        T.ok(role.least, ("%s: %s eased with no floor to stop at"):format(name, surface))
+        T.ok(tonumber(to) < tonumber(from), ("%s: %s grew"):format(name, surface))
+        -- Easing stops while the surface still shows, unless one step more already did not.
+        local before = Color.contrast(Color.mix(bg, role.over, role.mix + 0.01), bg)
+        T.ok(Color.contrast(role.hex, bg) >= role.least - 0.01 or before < role.least,
+          ("%s: %s faded out"):format(name, surface))
+      end
+    end
+  end
+  table.sort(names)
+  local parts = {}
+  for _, surface in ipairs(names) do
+    parts[#parts + 1] = ("%s %d"):format(surface, eased[surface])
+  end
+  print(("  eased for the code on them: %s"):format(table.concat(parts, ", ")))
+end)
+
 T.test("voice: a theme's color stays off screen only if it would look like one that is on it", function()
   -- All twelve chromatic slots, in every theme: edit one and something on screen
   -- must change. The one exception is the solver doing its job: if the new color

@@ -274,6 +274,81 @@ T.test("surface: a selection stays stronger than the cursor line", function()
   T.ok(roles.visual.mix > roles.cursorline.mix)
 end)
 
+--- Is any code or comment too faint on `surface`, though it could still ease?
+local function unread(colorscheme, surface)
+  local Roles = require("colorrex.roles")
+  local roles, bg = colorscheme.roles, colorscheme.filled.bg
+  local role = roles[surface]
+  local faint = Roles.unreadable_on(Roles.text_on(Roles.surface_text(roles, bg), role.holds), role.hex)
+  return faint and Roles.can_ease(bg, role.over, role.mix, role.least) and faint.name
+end
+
+T.test("surface: code under a snippet placeholder eases it off", function()
+  local colorscheme = faint_comments()
+  local role = colorscheme.roles.accent_soft
+  T.ok(role.least, "a placeholder never eases")
+  T.ok(role.mix < 0.18, "the placeholder did not move, so this proves nothing")
+  T.ok(not unread(colorscheme, "accent_soft"), "a placeholder leaves code unreadable")
+  T.eq(colorscheme.groups.SnippetTabstop.bg, colorscheme.roles.accent_soft.hex)
+end)
+
+--- Rose Pine Dawn, whose types and fields were too faint under a reference.
+local function faint_names()
+  local list = { "#f2e9e1", "#b4637a", "#286983", "#ea9d34", "#56949f", "#907aa9", "#d7827e", "#575279",
+    "#9893a5", "#b4637a", "#286983", "#ea9d34", "#56949f", "#907aa9", "#d7827e", "#575279" }
+  local ansi = {}
+  for i, hex in ipairs(list) do
+    ansi[i - 1] = hex
+  end
+  return Compiler.compile(F.theme({ fg = "#575279", bg = "#faf4ed", cursor = "#575279", ansi = ansi }), OPTS)
+end
+
+T.test("surface: a name under a reference eases it off", function()
+  local colorscheme = faint_names()
+  local role = colorscheme.roles.reference
+  T.ok(role.mix < 0.14, "the reference did not move, so this proves nothing")
+  T.ok(not unread(colorscheme, "reference"), "a name is unreadable under a reference")
+  T.eq(colorscheme.groups.LspReferenceText.bg, role.hex)
+  T.eq(next(codes(colorscheme)), nil)
+end)
+
+T.test("promises: a name too faint under a reference that could ease is caught", function()
+  local colorscheme = faint_names()
+  local reference = colorscheme.roles.reference
+  reference.mix, reference.hex = 0.14, Color.mix(colorscheme.filled.bg, reference.over, 0.14)
+  T.ok(codes(colorscheme)["faithful.surface"])
+end)
+
+T.test("surface: a reference does not fade for text it never marks", function()
+  -- Only the comments are faint here, and a reference never lies under a comment.
+  local colorscheme = faint_comments()
+  T.eq(colorscheme.roles.reference.mix, 0.14)
+  T.ok(colorscheme.roles.accent_soft.mix < 0.18, "nothing was faint, so this proves nothing")
+end)
+
+T.test("surface: a float eases off so the code in hover docs reads", function()
+  local ansi = F.theme().ansi
+  ansi[8] = "#585858" -- comments right at their floor
+  local colorscheme = Compiler.compile(F.theme({ fg = "#d6d2cc", bg = "#161616", cursor = "#e05d3a", ansi = ansi }), OPTS)
+  local element = colorscheme.roles.element
+  T.ok(element.mix < 0.08, "the float did not move, so this proves nothing")
+  T.ok(not unread(colorscheme, "element"), "comments are too faint in a float")
+  T.ok(Color.contrast(element.hex, colorscheme.filled.bg) >= 1.06 - 0.005, "the float faded out")
+  T.eq(next(codes(colorscheme)), nil)
+end)
+
+T.test("surface: a reference stays stronger than the cursor line", function()
+  for _, colorscheme in ipairs({ good(), faint_comments(), at_the_floor() }) do
+    T.ok(colorscheme.roles.reference.mix > colorscheme.roles.cursorline.mix)
+  end
+end)
+
+T.test("surface: a scrollbar is not eased for text it never holds", function()
+  local roles = faint_comments().roles
+  T.eq(roles.subtle.mix, 0.14)
+  T.eq(roles.subtle.least, nil)
+end)
+
 T.test("surface: colored text in a float is readable on the float", function()
   local colorscheme = at_the_floor()
   T.ok(colorscheme.roles.float_info.hex ~= colorscheme.roles.info.hex, "nothing needed lifting, so this proves nothing")
@@ -311,8 +386,8 @@ T.test("surface: on a mid-tone background, text picks the side that reads", func
 end)
 
 T.test("surface: when the two lifts for quiet text disagree, it falls back to fg", function()
-  -- On this red the cursor line and a float sit either side of the turning point.
-  local colorscheme = Compiler.compile(F.theme({ fg = "#c7cee9", bg = "#d91d01" }), OPTS)
+  -- On this red-orange the cursor line and a float sit either side of the turning point.
+  local colorscheme = Compiler.compile(F.theme({ fg = "#c7cee9", bg = "#c64000" }), OPTS)
   T.eq(colorscheme.roles.muted.hex, "#c7cee9")
   T.eq(next(codes(colorscheme)), nil)
 end)
@@ -334,6 +409,28 @@ T.test("promises: a selection fainter than the cursor line is caught", function(
   local colorscheme = good()
   colorscheme.roles.visual.mix = colorscheme.roles.cursorline.mix
   T.ok(codes(colorscheme)["faithful.surface"])
+end)
+
+T.test("promises: a reference fainter than the cursor line is caught", function()
+  local colorscheme = good()
+  colorscheme.roles.reference.mix = colorscheme.roles.cursorline.mix
+  T.ok(codes(colorscheme)["faithful.surface"])
+end)
+
+T.test("promises: a fill under code that never eases is caught", function()
+  -- A new group put on a surface nobody eases would otherwise pass unjudged.
+  for name, surface in pairs({ SnippetTabstop = "subtle", LspReferenceText = "statusline", NormalFloat = "statusline" }) do
+    local colorscheme = good()
+    colorscheme.group_specs[name].bg = surface
+    T.ok(codes(colorscheme)["faithful.surface"], name .. " on " .. surface)
+  end
+end)
+
+T.test("promises: a fill nothing is read on may stay put", function()
+  local colorscheme = good()
+  T.eq(colorscheme.group_specs.PmenuSbar.bg, "subtle")
+  T.eq(colorscheme.group_specs.FloatShadow.bg, "border")
+  T.eq(next(codes(colorscheme)), nil)
 end)
 
 T.test("promises: text too faint on its own fill is caught", function()
