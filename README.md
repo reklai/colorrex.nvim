@@ -3,12 +3,10 @@
 Compiles the theme your Ghostty / Rex Terminal is showing into a native Neovim colorscheme.
 No dependencies, no configuration, no theme files.
 
-<p align="center">
-  <img src="assets/colorrex.gif" width="480"
-       alt="The same Go file in Neovim, shown under eight terminal themes in turn, its code colors changing with each">
-</p>
-<p align="center"><sub>One file under eight Ghostty themes. Each frame is a real Neovim screen, captured
-from a terminal set to that theme, with no other configuration.</sub></p>
+https://github.com/user-attachments/assets/c36718b4-fa47-48ef-83bf-e4f948cbc8c3
+
+<p align="center"><sub>Stepping through Rex's theme picker with Neovim open. The code recolors live
+as each theme is previewed, with no other configuration.</sub></p>
 
 > **Early days.** colorrex is young and has mostly been built and tested on one
 > person's setup, so expect bugs and edge cases nobody has hit yet. The promises
