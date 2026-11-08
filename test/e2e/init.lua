@@ -6,6 +6,9 @@ if vim.env.COLORREX_E2E_BACKGROUND then
   -- leaves the session's reply handling as the only way to see a dark/light flip.
   vim.cmd("set background=" .. vim.env.COLORREX_E2E_BACKGROUND)
 end
+if vim.env.COLORREX_E2E_UPDATETIME then
+  vim.o.updatetime = tonumber(vim.env.COLORREX_E2E_UPDATETIME) -- how soon a pause counts
+end
 vim.cmd("runtime plugin/colorrex.lua")
 if vim.env.COLORREX_E2E_MANUAL then
   require("colorrex").setup({ auto = false }) -- setup also turns it on
@@ -35,6 +38,12 @@ vim.api.nvim_create_user_command("E2EDump", function(opts)
     string = hl("String", "fg"),
     terminal1 = vim.g.terminal_color_1,
     normal_bg = hl("Normal", "bg"),
+    failure = hl("ColorRexFailure", "fg"),
+    value = hl("@number", "fg"),
+    route = status.route or vim.NIL,
+    borrowed = status.borrowed,
+    voice = status.voice or vim.NIL,
+    tmux = status.tmux,
   }))
   file:close()
 end, { nargs = 1 })

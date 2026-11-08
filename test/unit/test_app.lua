@@ -602,14 +602,15 @@ T.test("chunks: off unless asked for, and gone when the colorscheme goes", funct
   local plain = F.fake_host()
   local app = App.new(plain, Config.resolve())
   app:load()
-  T.eq(plain.decorating, nil)
+  T.eq(plain.decorating.landmarks, nil)
+  T.ok(plain.decorating.refine, "meanings are drawn with no option at all")
 
   local host = F.fake_host()
   app = App.new(host, Config.resolve({ chunks = true }))
   app:load()
-  T.ok(host.decorating, "asked for, so it draws")
+  T.ok(host.decorating.landmarks, "asked for, so it draws")
   host.handlers.colorscheme_changed("habamax")
-  T.eq(host.decorating, nil)
+  T.eq(host.decorating, nil, "another colorscheme sees nothing of ours")
 end)
 
 T.test("chunks: setup can turn them on and off while running", function()
@@ -618,7 +619,146 @@ T.test("chunks: setup can turn them on and off while running", function()
   local app = App.new(host, Config.resolve())
   app:load()
   app:configure(Config.resolve({ chunks = true }))
-  T.ok(host.decorating)
+  T.ok(host.decorating.landmarks)
   app:configure(Config.resolve())
-  T.eq(host.decorating, nil)
+  T.eq(host.decorating.landmarks, nil)
+end)
+
+-- Layers between Neovim and the terminal ---------------------------------------------
+
+local function answer_xterm(app, theme)
+  for _, sequence in ipairs(F.xterm_replies(theme)) do
+    app.terminal.feed(sequence)
+  end
+end
+
+T.test("app: a pause in typing asks once, then not again for a while", function()
+  local app, host = start()
+  app:load()
+  answer(app, F.theme())
+  local sent = #host.sent
+  host.handlers.pause()
+  T.eq(#host.sent, sent + 1)
+  answer(app, DRACULA)
+  T.eq(host.shown.filled.bg, "#282a36", "a change tmux or herdr dropped still shows")
+  host.handlers.pause()
+  T.eq(#host.sent, sent + 1, "a second pause soon after asks nothing")
+  host.advance(2000)
+  host.handlers.pause()
+  T.eq(#host.sent, sent + 2)
+end)
+
+T.test("app: auto = false turns the pause check off", function()
+  local app, host = start()
+  app.config = Config.resolve({ auto = false })
+  app:load()
+  answer(app, F.theme())
+  local sent = #host.sent
+  host.handlers.pause()
+  T.eq(#host.sent, sent)
+end)
+
+T.test("app: through tmux, the cursor tmux hides comes from the last full read", function()
+  -- A direct Neovim on this machine saw Dracula with its pink cursor.
+  local direct, direct_host = start()
+  direct:load()
+  answer(direct, DRACULA)
+  local app, host = start({ saved = direct_host.saved, in_tmux = true })
+  app:load()
+  answer_xterm(app, DRACULA)
+  T.eq(host.shown.filled.cursor, "#ff79c6")
+  T.ok(app:status().borrowed)
+  T.eq(app:status().route, "xterm")
+  T.eq(host.shown.voice, direct_host.shown.voice, "the theme reads the same through tmux")
+end)
+
+T.test("app: through tmux, a palette never seen whole keeps no cursor", function()
+  local app, host = start({ in_tmux = true })
+  app:load()
+  answer_xterm(app, DRACULA)
+  T.eq(host.shown.filled.cursor, nil)
+  T.eq(app:status().borrowed, false)
+end)
+
+T.test("app: inside tmux, silence is blamed on tmux, with where to look", function()
+  local app, host = start({ in_tmux = true })
+  app:load()
+  host.advance(500)
+  host.advance(2000)
+  T.ok(host.messages[1].message:find("tmux", 1, true), host.messages[1].message)
+  T.ok(#host.messages[1].message <= 68, "fits v:echospace, so launch never waits on Enter")
+end)
+
+T.test("app: a terminal that reports fg and bg but no palette still gets the notice", function()
+  -- Neovim's own :terminal answers OSC 10 and 11 and nothing else.
+  local app, host = start()
+  app:load()
+  app.terminal.feed("\027]10;rgb:ffff/ffff/ffff")
+  app.terminal.feed("\027]11;rgb:0000/0000/0000")
+  host.advance(500)
+  host.advance(2000)
+  T.ok(host.messages[1] and host.messages[1].message:find("no colors reported", 1, true))
+end)
+
+T.test("app: through tmux that knows no fg or bg yet, the palette alone finds the theme", function()
+  local direct, direct_host = start()
+  direct:load()
+  answer(direct, DRACULA)
+  local app, host = start({ saved = direct_host.saved, in_tmux = true })
+  app:load()
+  local replies = F.xterm_replies(DRACULA)
+  for index = 3, #replies do -- the palette only
+    app.terminal.feed(replies[index])
+  end
+  host.advance(500)
+  T.eq(host.shown.filled.bg, "#282a36")
+  T.eq(host.shown.filled.cursor, "#ff79c6")
+end)
+
+T.test("app: a reported color that disagrees with the last read is never overruled", function()
+  local direct, direct_host = start()
+  direct:load()
+  answer(direct, DRACULA)
+  local app, host = start({ saved = direct_host.saved, in_tmux = true })
+  app:load()
+  answer_xterm(app, F.theme({ fg = "#f8f8f2", bg = "#101010", cursor = false, ansi = DRACULA.ansi }))
+  T.eq(host.shown.filled.bg, "#101010")
+  T.eq(host.shown.filled.cursor, nil, "another theme with the same palette borrows nothing")
+end)
+
+T.test("app: through tmux, a fresh palette is shown even when tmux knows no fg or bg", function()
+  local app, host = start({ in_tmux = true })
+  app:load()
+  answer_xterm(app, DRACULA)
+  local gruvbox = F.theme({ ansi = { [0] = "#282828", "#cc241d", "#98971a", "#d79921", "#458588", "#b16286",
+    "#689d6a", "#a89984", "#928374", "#fb4934", "#b8bb26", "#fabd2f", "#83a598", "#d3869b", "#8ec07c", "#ebdbb2" } })
+  app:sync("pause")
+  local replies = F.xterm_replies(gruvbox)
+  for index = 3, #replies do
+    app.terminal.feed(replies[index])
+  end
+  host.advance(500)
+  T.eq(host.shown.filled.ansi[1], "#cc241d", "the palette tmux did report")
+  T.eq(host.shown.filled.bg, "#282a36", "the last background known, not an invented one")
+  T.ok(app:status().borrowed:find("tmux", 1, true))
+end)
+
+T.test("app: a theme filled from the last known colors is shown but never saved", function()
+  -- The saved file is what this machine saw whole. A mix written there would stand
+  -- in for the real theme at the next launch, and in every other Neovim.
+  local direct, direct_host = start()
+  direct:load()
+  answer(direct, DRACULA)
+  local saved = direct_host.saved
+  local app, host = start({ saved = saved, in_tmux = true })
+  app:load()
+  local other = F.theme({ ansi = { [0] = "#1d1f21", "#cc6666", "#b5bd68", "#f0c674", "#81a2be", "#b294bb",
+    "#8abeb7", "#c5c8c6", "#666666", "#d54e53", "#b9ca4a", "#e7c547", "#7aa6da", "#c397d8", "#70c0b1", "#eaeaea" } })
+  local replies = F.xterm_replies(other)
+  for index = 3, #replies do
+    app.terminal.feed(replies[index])
+  end
+  host.advance(500)
+  T.eq(host.shown.filled.ansi[1], "#cc6666")
+  T.eq(host.saved, saved)
 end)

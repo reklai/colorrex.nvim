@@ -6,6 +6,8 @@
 --
 -- Each file in groups/ is one area of the editor, and returns a function from the
 -- helpers below to its groups. Add a plugin to groups/plugins.lua.
+local Meanings = require("colorrex.meanings")
+
 local AREAS = {
   require("colorrex.groups.editor"),
   require("colorrex.groups.syntax"),
@@ -29,6 +31,12 @@ function M.build(opts, styles)
     syn = function(role)
       local style = styles[role]
       return { fg = role, bold = style.bold, italic = style.italic, underline = style.underline }
+    end,
+    --- A meaning, in its role's color and the weight and slant it was given.
+    meaning = function(name)
+      local role = assert(Meanings.ROLE[name], "unknown meaning " .. tostring(name))
+      return styles[role] and { fg = role, bold = styles[role].bold, italic = styles[role].italic,
+        underline = styles[role].underline } or { fg = role }
     end,
     each = function(groups, names, spec)
       for _, name in ipairs(names) do

@@ -4,45 +4,34 @@
 -- Color goes where it tells you something the shape of the text does not. A field, a
 -- method and a variable are all just words, so they differ in color. `=` and `self` can
 -- be read on sight, and appear on nearly every line, so they stay quiet.
+--
+-- Code captures take the color of what they mean (see meanings.lua), so the same
+-- meaning reads the same in every language. The lines after the loop are captures
+-- whose meaning depends on more than their name.
+local Meanings = require("colorrex.meanings")
+
 return function(define)
-  local link, syn, each = define.link, define.syn, define.each
+  local link, syn, each, meaning = define.link, define.syn, define.each, define.meaning
   local G = {}
 
-  G["@variable"] = { fg = "fg" }
-  G["@variable.builtin"] = { fg = "muted" }
-  G["@variable.parameter"] = { fg = "muted" }
-  G["@variable.parameter.builtin"] = { fg = "muted" }
-  G["@variable.member"] = { fg = "property" }
-  G["@constant"] = { fg = "constant" }
-  G["@constant.builtin"] = { fg = "constant" }
+  for capture, name in pairs(Meanings.CAPTURES) do
+    G[capture] = meaning(name)
+  end
+  G.ColorRexFailure = meaning("failure") -- what the lexicon adds, drawn by the host
+
   G["@constant.macro"] = { fg = "preproc" }
-  G["@module"] = syn("type")
-  G["@module.builtin"] = syn("type")
-  G["@label"] = syn("keyword")
-  G["@string"] = syn("string")
   G["@string.documentation"] = { fg = "comment" }
   each(G, { "@string.regexp", "@string.escape", "@string.special", "@string.special.symbol" }, syn("operator"))
   G["@string.special.path"] = { fg = "func" }
   G["@string.special.url"] = { fg = "accent", underline = true }
-  G["@character"] = syn("string")
   G["@character.special"] = syn("operator")
-  each(G, { "@boolean", "@number", "@number.float" }, syn("number"))
-  each(G, { "@type", "@type.builtin", "@type.definition", "@attribute" }, syn("type"))
-  G["@attribute.builtin"] = syn("type")
-  G["@property"] = { fg = "property" }
-  each(G, { "@function", "@function.call", "@function.method", "@function.method.call" }, syn("func"))
-  G["@function.builtin"] = syn("func")
   G["@function.macro"] = { fg = "preproc" }
-  G["@constructor"] = syn("type")
-  G["@operator"] = { fg = "muted" }
   each(G, {
-    "@keyword", "@keyword.coroutine", "@keyword.function", "@keyword.type", "@keyword.modifier",
-    "@keyword.repeat", "@keyword.return", "@keyword.debug", "@keyword.exception",
-    "@keyword.conditional",
-  }, syn("keyword"))
+    "@keyword.coroutine", "@keyword.function", "@keyword.type", "@keyword.modifier",
+    "@keyword.repeat", "@keyword.return", "@keyword.debug", "@keyword.conditional",
+  }, meaning("control"))
   each(G, { "@keyword.directive", "@keyword.directive.define", "@keyword.import" }, { fg = "preproc" })
   each(G, { "@keyword.operator", "@keyword.conditional.ternary" }, syn("operator"))
-  each(G, { "@punctuation.delimiter", "@punctuation.bracket" }, { fg = "muted" })
   G["@punctuation.special"] = syn("operator")
   G["@comment"] = link("Comment")
   G["@comment.documentation"] = link("Comment")

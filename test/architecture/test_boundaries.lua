@@ -6,6 +6,7 @@ local T = require("harness")
 -- bottom-up: nothing requires anything listed after it.
 local GRAPH = {
   ["colorrex.color"] = {},
+  ["colorrex.meanings"] = {},
   ["colorrex.chunks"] = {},
   ["colorrex.config"] = {},
   ["colorrex.commands"] = {},
@@ -14,12 +15,12 @@ local GRAPH = {
   ["colorrex.theme"] = { "colorrex.color" },
   ["colorrex.groups.editor"] = {},
   ["colorrex.groups.syntax"] = {},
-  ["colorrex.groups.treesitter"] = {},
+  ["colorrex.groups.treesitter"] = { "colorrex.meanings" },
   ["colorrex.groups.lsp"] = {},
   ["colorrex.groups.diagnostics"] = {},
   ["colorrex.groups.plugins"] = {},
   ["colorrex.groups"] = {
-    "colorrex.groups.diagnostics", "colorrex.groups.editor", "colorrex.groups.lsp",
+    "colorrex.meanings", "colorrex.groups.diagnostics", "colorrex.groups.editor", "colorrex.groups.lsp",
     "colorrex.groups.plugins", "colorrex.groups.syntax", "colorrex.groups.treesitter",
   },
   ["colorrex.lualine"] = {},
@@ -33,7 +34,7 @@ local GRAPH = {
   },
   ["colorrex.report"] = {},
   ["colorrex.app"] = {
-    "colorrex.chunks", "colorrex.compiler", "colorrex.config", "colorrex.report", "colorrex.terminal",
+    "colorrex.chunks", "colorrex.compiler", "colorrex.config", "colorrex.meanings", "colorrex.report", "colorrex.terminal",
     "colorrex.theme",
   },
   ["colorrex.neovim"] = { "colorrex.config" },

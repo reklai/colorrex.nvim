@@ -59,6 +59,26 @@ local function nvim_tab(name, delay, env, extra)
   return { block = tab.block_ids[1], window = tab.window_id, name = name }
 end
 
+--- Neovim inside tmux inside a Rex block. tmux runs with no config of its own,
+--- as a fresh install does, unless `conf` names settings for it.
+local function nvim_tmux_tab(name, env, conf)
+  local socket = "colorrex-e2e-" .. name
+  local parts = { "COLORREX_ROOT=" .. root, "XDG_STATE_HOME=" .. (env or work), "COLORREX_E2E_UPDATETIME=300" }
+  local listen = ("%s/%s.sock"):format(work, name)
+  parts[#parts + 1] = ("exec %s -n --listen %s -u %s/test/e2e/init.lua %s/test/e2e/sample.lua"):format(
+    vim.v.progpath, listen, root, root)
+  local conf_path = ("%s/%s.tmux.conf"):format(work, name)
+  local file = assert(io.open(conf_path, "w"))
+  for _, setting in ipairs(conf or {}) do
+    file:write(("set -g %s %s\n"):format(setting[1], setting[2]))
+  end
+  file:close()
+  local command = { "tmux", "-L", socket, "-f", conf_path, "new-session", table.concat(parts, " ") }
+  local tab = vim.json.decode(rex("window", "new", "-s", session, name, "--focus=false", "--json", "--shell=none",
+    "--", unpack(command)))
+  return { block = tab.block_ids[1], window = tab.window_id, name = name, socket = socket, listen = listen }
+end
+
 local function theme(tab, name)
   rex("do", "-s", session, "-b", tab.block, "com.superlogical.terminal.set_theme", "--args",
     vim.json.encode(THEMES[name]))
@@ -84,6 +104,36 @@ local function dump(tab)
   local state = vim.json.decode(file:read("*a"))
   file:close()
   return state
+end
+
+--- The SGR codes the terminal drew just before the first `word` on screen.
+local function style_before(tab, word)
+  local out = rex("do", "-s", session, "-b", tab.block, "com.superlogical.terminal.format",
+    "extra_style=true", "format=vt", "max_bytes=20000")
+  local content = vim.json.decode(out).content
+  local at = content:find(word, 1, true)
+  if not at then
+    return nil
+  end
+  local before = content:sub(1, at - 1)
+  local codes = {} -- a terminal can write one style as several sequences in a row
+  local sequence = before:match("(\027%[[%d;:]*m)$")
+  while sequence do
+    table.insert(codes, 1, sequence:sub(3, -2))
+    before = before:sub(1, -#sequence - 1)
+    sequence = before:match("(\027%[[%d;:]*m)$")
+  end
+  return table.concat(codes, ";")
+end
+
+--- Whether SGR codes set the foreground to `hex`.
+local function draws(style, hex)
+  if not style or not hex or hex == vim.NIL then
+    return false
+  end
+  local r, g, b = hex:match("#(%x%x)(%x%x)(%x%x)")
+  local want = ("38;2;%d;%d;%d"):format(tonumber(r, 16), tonumber(g, 16), tonumber(b, 16))
+  return (";" .. style .. ";"):find(";" .. want .. ";", 1, true) ~= nil
 end
 
 local function focus(tab)
@@ -255,6 +305,30 @@ local function suite()
   check("chunks: and is gone when turned off", not bold(off), tostring(off))
   send(shape, "\027:qa!\r")
 
+  -- Meanings are drawn on redraw, over what the highlighter paints, so only a terminal
+  -- can show them. Lua's parser ships with Neovim, so this needs nothing installed.
+  local failing = work .. "/failing.lua"
+  file = assert(io.open(failing, "w"))
+  file:write("local ok, err = pcall(load)\nif not ok then\n  return nil, err\nend\nlocal count = 40961\n")
+  file:close()
+  local reader = nvim_tab("meanings", "0.2")
+  wait(900)
+  theme(reader, "dracula")
+  send(reader, "gS")
+  wait(300)
+  send(reader, (":edit %s\r:lua vim.treesitter.start()\r"):format(failing))
+  wait(600)
+  state = dump(reader)
+  check("meanings: nil is drawn in failure's color, with no option set",
+    draws(style_before(reader, "nil"), state.failure), vim.inspect({ style_before(reader, "nil"), state.failure }))
+  check("meanings: so is err, which no grammar marks",
+    draws(style_before(reader, "err"), state.failure), vim.inspect({ style_before(reader, "err"), state.failure }))
+  check("meanings: and a number is a value, not failure",
+    draws(style_before(reader, "40961"), state.value) and state.value ~= state.failure,
+    vim.inspect({ style_before(reader, "40961"), state.value }))
+  send(reader, "\027:qa!\r")
+  wait(300)
+
   local fresh = vim.fn.tempname()
   vim.fn.mkdir(fresh, "p")
   local race = nvim_tab("race", "0", fresh)
@@ -267,7 +341,180 @@ local function suite()
   send(race, "\027:qa!\r")
 end
 
-local ok, err = xpcall(suite, debug.traceback)
+-- tmux in a libghostty terminal: the same Neovim, with tmux between it and Rex.
+local function tmux_suite()
+  if vim.fn.executable("tmux") == 0 then
+    print("SKIP  tmux is not installed")
+    return
+  end
+  -- A direct Neovim sees Dracula whole, cursor and all, and saves it.
+  local shared = vim.fn.tempname()
+  vim.fn.mkdir(shared, "p")
+  local direct = nvim_tab("tmux-direct", "0.3", shared)
+  wait(900)
+  theme(direct, "dracula")
+  send(direct, "gS")
+  wait(500)
+  local seen = dump(direct)
+  send(direct, "\027:qa!\r")
+  wait(300)
+
+  local tab = nvim_tmux_tab("tmux-plain", shared)
+  wait(300)
+  theme(tab, "dracula")
+  wait(2500) -- launch, its retries, and tmux learning the block's colors
+  local state = dump(tab)
+  check("tmux: with no tmux config, Neovim gets the terminal's whole palette",
+    state.bg == "#282a36" and state.completeness == "full" and state.route == "xterm", vim.inspect(state))
+  check("tmux: the cursor tmux hides comes from the last full read, so the theme reads the same",
+    state.borrowed ~= false and state.voice == seen.voice, vim.inspect({ state.borrowed, state.voice, seen.voice }))
+
+  theme(tab, "gruvbox")
+  send(tab, "\027") -- a key, then a pause, as when someone stops typing
+  wait(1200)
+  state = dump(tab)
+  -- tmux forwards every palette query to Rex, but keeps fg and bg from Rex's last
+  -- report, and Rex reports only dark/light changes. Ghostty reports every change,
+  -- and allow-passthrough carries fg and bg directly.
+  check("tmux: a dark-to-dark palette change tmux never reports shows after a pause in typing",
+    state.terminal1 == "#cc241d", vim.inspect(state))
+
+  theme(tab, "onelight")
+  wait(1200)
+  state = dump(tab)
+  check("tmux: dark to light is automatic, as tmux forwards that report",
+    state.bg == "#fafafa" and state.background == "light", vim.inspect(state))
+  send(tab, "\027:qa!\r")
+  wait(300)
+  vim.system({ "tmux", "-L", tab.socket, "kill-server" }):wait()
+
+  local passing = nvim_tmux_tab("tmux-passthrough", nil, { { "allow-passthrough", "on" } })
+  wait(300)
+  theme(passing, "gruvbox")
+  wait(2500)
+  state = dump(passing)
+  check("tmux: with allow-passthrough on, the whole theme comes through in one read",
+    state.bg == "#282828" and state.route == "kitty" and state.completeness == "full", vim.inspect(state))
+  send(passing, "\027:qa!\r")
+  wait(300)
+  vim.system({ "tmux", "-L", passing.socket, "kill-server" }):wait()
+end
+
+--- How long, in ms, until an unfocused Neovim in `tab` shows `want` as its red,
+--- after the block's theme changes the way a picker preview does: silently, with
+--- focus elsewhere. nil if it never does within `limit`.
+local function preview_latency(tab, name, want, limit)
+  theme(tab, name)
+  local start = vim.uv.hrtime()
+  -- Asked over RPC, never by typing: a keypress would start the check colorrex runs
+  -- when typing pauses, and a real picker sends Neovim no keys at all.
+  local channel = vim.fn.sockconnect("pipe", tab.listen, { rpc = true })
+  while (vim.uv.hrtime() - start) / 1e6 < limit do
+    local ok, red = pcall(vim.rpcrequest, channel, "nvim_exec_lua", "return vim.g.terminal_color_1", {})
+    if ok and red == want then
+      vim.fn.chanclose(channel)
+      return math.floor((vim.uv.hrtime() - start) / 1e6)
+    end
+    wait(20)
+  end
+  vim.fn.chanclose(channel)
+  return nil
+end
+
+-- A picker in Rex takes focus and previews themes without a word to the block. Inside
+-- tmux, Neovim hears of focus only with focus-events on, and reaches Rex's own colors
+-- only with allow-passthrough on.
+local function picker_suite()
+  if vim.fn.executable("tmux") == 0 then
+    print("SKIP  tmux is not installed")
+    return
+  end
+  local elsewhere = vim.json.decode(rex("window", "new", "-s", session, "picker-focus", "--focus=false", "--json",
+    "--shell=none", "--", "/bin/sleep", "600"))
+  local function run(label, conf)
+    local fresh = vim.fn.tempname() -- nothing saved: what it shows, it heard
+    vim.fn.mkdir(fresh, "p")
+    local tab = nvim_tmux_tab("picker-" .. label, fresh, conf)
+    wait(300)
+    theme(tab, "dracula")
+    focus(tab)
+    wait(2500)
+    rex("window", "focus", "-s", session, elsewhere.window_id) -- the picker opens
+    wait(300)
+    local first = preview_latency(tab, "gruvbox", "#cc241d", 3000)
+    local second = preview_latency(tab, "dracula", "#ff5555", 3000)
+    send(tab, "\027:qa!\r")
+    wait(300)
+    vim.system({ "tmux", "-L", tab.socket, "kill-server" }):wait()
+    return first, second
+  end
+  local plain = { run("plain") }
+  print(("info  tmux defaults: previews after %s and %s ms"):format(tostring(plain[1]), tostring(plain[2])))
+  local tuned = { run("tuned", { { "focus-events", "on" }, { "allow-passthrough", "on" } }) }
+  print(("info  focus-events and allow-passthrough on: previews after %s and %s ms"):format(
+    tostring(tuned[1]), tostring(tuned[2])))
+  check("tmux, tuned: a picker preview shows within half a second, as it does without tmux",
+    tuned[1] and tuned[1] < 500 and tuned[2] and tuned[2] < 500, vim.inspect(tuned))
+end
+
+-- What the meanings cost a real redraw. A keystroke or a scroll must cost what it costs
+-- without them, near enough, or the editor stops feeling like itself.
+local function speed_suite()
+  local listen = ("/run/user/%d/crx-e2e-speed.sock"):format(vim.uv.getuid()) -- short: sockets cap paths
+  os.remove(listen)
+  local command = ("COLORREX_ROOT=%s XDG_STATE_HOME=%s exec %s -n --listen %s -u %s/test/e2e/init.lua %s/lua/colorrex/roles.lua")
+    :format(root, work, vim.v.progpath, listen, root, root)
+  local tab = vim.json.decode(rex("window", "new", "-s", session, "speed", "--focus=false", "--json", "--shell=none",
+    "--", "/bin/sh", "-c", command))
+  vim.wait(8000, function() return vim.uv.fs_stat(listen) ~= nil end, 50)
+  wait(1200)
+  local channel = vim.fn.sockconnect("pipe", listen, { rpc = true })
+  local function lua(code, ...) return vim.rpcrequest(channel, "nvim_exec_lua", code, { ... }) end
+  lua("vim.treesitter.start() vim.wait(300)")
+  local scroll = [[
+    vim.cmd("normal! gg")
+    local t = vim.uv.hrtime()
+    for _ = 1, 300 do vim.cmd("normal! \5") vim.cmd("redraw") end
+    return (vim.uv.hrtime() - t) / 1e6 / 300
+  ]]
+  local typing = [[
+    local row
+    for r = 40, 400 do
+      if vim.api.nvim_buf_get_lines(0, r - 1, r, false)[1]:match("^%s+local [%a_]+ = ") then row = r - 1 break end
+    end
+    local col = vim.api.nvim_buf_get_lines(0, row, row + 1, false)[1]:find(" = ") - 1
+    vim.api.nvim_win_set_cursor(0, { row + 1, 0 }) vim.cmd("normal! zz")
+    local t = vim.uv.hrtime()
+    for _ = 1, 200 do
+      vim.api.nvim_buf_set_text(0, row, col, row, col, { "x" }) col = col + 1
+      vim.cmd("redraw")
+    end
+    local per = (vim.uv.hrtime() - t) / 1e6 / 200
+    vim.cmd("silent! undo 0")
+    return per
+  ]]
+  lua(scroll) lua(typing) -- warm
+  local on = { scroll = lua(scroll), typing = lua(typing) }
+  lua("vim.api.nvim_set_decoration_provider(vim.api.nvim_create_namespace('colorrex.chunks'), {})")
+  local off = { scroll = lua(scroll), typing = lua(typing) }
+  print(("info  per frame with meanings / without: scroll %.2f / %.2f ms, typing %.2f / %.2f ms"):format(
+    on.scroll, off.scroll, on.typing, off.typing))
+  for _, kind in ipairs({ "scroll", "typing" }) do
+    check(("speed: meanings cost a %s nothing a person could feel"):format(kind),
+      on[kind] <= off[kind] * 1.5 + 0.3, vim.inspect({ on = on[kind], off = off[kind] }))
+  end
+  pcall(vim.rpcrequest, channel, "nvim_command", "qa!")
+  os.remove(listen)
+end
+
+local function all()
+  suite()
+  tmux_suite()
+  picker_suite()
+  speed_suite()
+end
+
+local ok, err = xpcall(all, debug.traceback)
 pcall(rex, "kill", session)
 vim.fn.delete(work, "rf")
 if not ok then

@@ -30,16 +30,22 @@ M.MIN_CHROMA = 0.03 -- below this a slot is a grey, however it is named
 local COMMENT_FLOOR = 2.5 -- comments may recede further than code, but stay legible
 
 -- Each syntax role's slots, most natural first. The bright partner is the one kept
--- in reserve; `number` holds bright yellow only until the roles above it are settled,
--- when it takes the constant's color if it can. This order is also precedence: a
--- collision moves the later role, because a theme is recognized by its keywords,
--- functions, strings and types far more than by its numbers and operators.
+-- in reserve. This order is also precedence: a collision moves the later role, because
+-- a theme is recognized by its keywords, functions, strings and types far more than by
+-- its operators.
+--
+-- `failure` is nil, null and None, and everything that fails or is caught: errors,
+-- `throw`, `raise`, `catch`, `panic`. It takes the color nil has always had, ANSI red
+-- by convention, and is held apart from every other role, so that color means one thing
+-- in every language. Numbers no longer share it: they are values, like strings, and
+-- take the string's bright partner (see value_role), because a digit's shape already
+-- says what it is.
 M.SYNTAX = {
   { name = "keyword", slots = { 5, 13 } },
   { name = "func", slots = { 4, 12 } },
   { name = "string", slots = { 2, 10 } },
   { name = "type", slots = { 3, 11 } },
-  { name = "number", slots = { 11, 3, 9, 1 } },
+  { name = "failure", slots = { 1, 9 } },
   { name = "operator", slots = { 6, 14 } },
 }
 
@@ -49,8 +55,6 @@ M.SECONDARY = {
   { name = "special", slots = { 9, 1 } },
 }
 
-local CONSTANT_SLOTS = { 1, 9 }
-
 -- Roles that keep their slot whatever the casting. With the two lists above these
 -- put all twelve chromatic slots on screen, so a change to any of them shows.
 M.PALETTE = {
@@ -59,7 +63,6 @@ M.PALETTE = {
   { name = "ok", slots = { 10, 2 } },
   { name = "info", slots = { 14, 6 } },
   { name = "hint", slots = { 12, 4 } },
-  { name = "constant", slots = CONSTANT_SLOTS },
 }
 
 -- Colors for surfaces: `over` mixed into the background. These are editor chrome,
@@ -71,7 +74,7 @@ M.PALETTE = {
 -- `subtle` and `reference` start alike, but nothing is ever read through a scrollbar.
 -- `holds` narrows the text a surface is judged by, when it can only ever lie under
 -- some of it: a reference marks a name, and never a comment, keyword or string.
-local NAMES = { "fg", "func", "type", "property", "number" } -- enum members and constants wear number
+local NAMES = { "fg", "func", "type", "property", "number" } -- enum members and constants are values
 local SURFACES = {
   { name = "cursorline", over = "fg", mix = 0.05, least = 1.04 },
   { name = "element", over = "fg", mix = 0.08, least = 1.06 },
@@ -310,6 +313,8 @@ local function property_role(theme, roles, floor)
         clashes = clashes or Casting.same_hue(option.hex, roles[name].hex)
           or Color.distance(option.hex, roles[name].hex) < Color.DISTINCT
       end
+      -- A field in failure's color would read as one: `req.Body` as an error.
+      clashes = clashes or Color.distance(option.hex, roles.failure.hex) < Color.DISTINCT
       if not clashes then
         return option
       end
@@ -343,20 +348,65 @@ local function voiced_syntax(theme, floor)
   return picks, voice
 end
 
---- Numbers are constants, and authored colorschemes paint them alike. Left on bright
---- yellow they sit beside `type` in one hue, which reads as one color however far apart
---- two lightnesses measure. This follows every repair so it can never cost another role
---- its color: a palette too small for that keeps `number` where those left it. It comes
---- before casting, which only moves colors, so a recast theme has the same ones to move.
-local function number_as_constant(theme, picks, floor)
-  local constant = from_slot(theme, natural_slot(theme, CONSTANT_SLOTS), floor)
-  if nearest_other(picks, "number", constant.hex) >= Color.DISTINCT then
-    picks.number = constant
+--- The color of values: numbers, booleans, characters and named constants. They are
+--- literals, as strings are, so they take the string's bright partner, however close to
+--- the string it sits: `3` and `"3"` differ in shape, which says what each is. Only a
+--- partner that would look like another role is refused, and then values wear the
+--- string's own color. Nothing else may borrow failure's.
+local function value_role(theme, roles, floor)
+  local slot = roles.string.slot
+  local partner = slot and (slot < 8 and slot + 8 or slot - 8)
+  if partner and chromatic(theme, partner) then
+    local option = from_slot(theme, partner, floor)
+    if nearest_other(roles, "string", option.hex) >= Color.DISTINCT then
+      return option
+    end
   end
+  return { hex = roles.string.hex, slot = roles.string.slot, source = roles.string.source, from = roles.string.from }
+end
+
+--- Failure's color is held apart from the quiet ones too: plain names, fields, values,
+--- comments and muted text. In a palette of one hue, or one whose red is its grey
+--- foreground, every variable would read as an error. So failure moves to the nearest
+--- color that stands apart from all of them, and with none left it cannot be plain:
+--- returns true, and styles give it a weight or slant no role in its color has.
+local function keep_failure_apart(theme, roles, floor, notes)
+  local quiet = { theme.fg, Color.mix(theme.bg, theme.fg, 0.72), roles.comment.hex, roles.property.hex, roles.number.hex }
+  local function apart(hex)
+    for _, other in ipairs(quiet) do
+      if Color.distance(hex, other) < Color.DISTINCT then
+        return false
+      end
+    end
+    return nearest_other(roles, "failure", hex) >= Color.DISTINCT
+  end
+  if apart(roles.failure.hex) then
+    return false
+  end
+  local best, nearest = nil, math.huge
+  for _, slot in ipairs(POOL) do
+    if chromatic(theme, slot) then
+      local option = from_slot(theme, slot, floor)
+      local move = Color.distance(option.hex, roles.failure.hex)
+      if apart(option.hex) and move < nearest then
+        best, nearest = option, move
+      end
+    end
+  end
+  if best then
+    notes[#notes + 1] = {
+      code = "practical.reassigned",
+      message = ("ansi %d read like plain text, so failure took ansi %d"):format(roles.failure.slot or -1, best.slot),
+    }
+    roles.failure = best
+    return false
+  end
+  notes[#notes + 1] = { code = "practical.style", message = "failure shares its color with plain text; set apart by style" }
+  return true
 end
 
 --- Give syntax roles the palette could not separate a different weight or slant.
-local function assign_styles(picks, notes)
+local function assign_styles(picks, notes, not_plain)
   local styles = { keyword = ITALIC }
   local function taken(style, name, upto)
     for index = 1, upto do
@@ -370,7 +420,7 @@ local function assign_styles(picks, notes)
   for index = 2, #M.SYNTAX do
     local name = M.SYNTAX[index].name
     for _, style in ipairs(STYLES) do
-      if not taken(style, name, index - 1) then
+      if not taken(style, name, index - 1) and not (not_plain[name] and style == PLAIN) then
         styles[name] = style
         break
       end
@@ -397,6 +447,7 @@ function M.surface_text(roles, bg)
     add(role.name, M.ON_SURFACE.text)
   end
   add("property", M.ON_SURFACE.text)
+  add("number", M.ON_SURFACE.text)
   add("comment", M.ON_SURFACE.comment)
   return text
 end
@@ -443,12 +494,44 @@ local function eased_mix(surface, over, bg, text)
   return mix
 end
 
---- The comment color: the theme's bright black when it behaves like one.
-local function comment_role(theme, notes)
+-- How far below the code a comment sits, as a share of the code's median contrast. Dark
+-- themes leave their comments near here on their own; many light ones do not, because
+-- a strong grey on white reads louder than colors that had to darken to be read.
+local COMMENT_UNDER_CODE = 0.75
+
+--- The middle contrast of the colors code is written in: the theme's six, made
+--- readable. Taken from the theme and not from the roles, so no voice or recast, which
+--- only moves colors between roles, can change how loud its comments are.
+local function code_contrast(theme, floor)
+  local values = {}
+  for slot = 1, 6 do
+    values[#values + 1] = Color.contrast(Color.lift(theme.ansi[slot], theme.bg, floor), theme.bg)
+  end
+  table.sort(values)
+  return values[math.ceil(#values / 2)]
+end
+
+--- The comment color: the theme's bright black when it behaves like one, which is to
+--- say quieter than the code it annotates. Louder than that, it keeps its hue and eases
+--- toward the background until it is, but never below the floor comments are held to.
+local function comment_role(theme, floor_code, notes)
   local fg_contrast = Color.contrast(theme.fg, theme.bg)
   local floor = M.comment_floor(fg_contrast)
   local source = theme.ansi[8]
   local contrast = Color.contrast(source, theme.bg)
+  local code = code_contrast(theme, floor_code)
+  if contrast >= floor and contrast < fg_contrast and contrast >= code then
+    local ceiling = math.max(floor, code * COMMENT_UNDER_CODE)
+    -- Easing lands on 8-bit colors, so it can step a hair past a ceiling that is the
+    -- floor itself. The floor wins.
+    local hex = Color.lift(Color.quiet(source, theme.bg, ceiling), theme.bg, floor)
+    notes[#notes + 1] = {
+      code = "faithful.comment",
+      message = ("ansi 8 %s is %.1f:1, as loud as the code at %.1f:1; eased to %.1f:1"):format(
+        source, contrast, code, Color.contrast(hex, theme.bg)),
+    }
+    return { hex = hex, source = "ansi 8", from = hex ~= source and source or nil }
+  end
   if contrast >= floor and contrast < fg_contrast then
     return { hex = source, source = "ansi 8" }
   end
@@ -515,7 +598,6 @@ function M.solve(theme, opts)
       message = ("the cursor sits nearest ansi %d, so keywords lead in the %s voice"):format(voice.anchor, voice.name),
     }
   else
-    number_as_constant(theme, roles, floor)
     casting = Casting.cast(roles, roles.string.hex)
     if casting ~= Casting.CONVENTION then
       notes[#notes + 1] = {
@@ -525,7 +607,11 @@ function M.solve(theme, opts)
     end
   end
   roles.property = property_role(theme, roles, floor)
-  local styles = assign_styles(roles, notes)
+  roles.number = value_role(theme, roles, floor)
+  roles.comment = comment_role(theme, floor, notes)
+  local failure_needs_style = keep_failure_apart(theme, roles, floor, notes)
+  local styles = assign_styles(roles, notes, { failure = failure_needs_style })
+  styles.number = styles.string
   for _, name in ipairs(Casting.ROLES) do
     note_lift(notes, name, roles[name], bg)
   end
@@ -533,7 +619,6 @@ function M.solve(theme, opts)
 
   roles.base = { hex = bg, source = "bg" }
   roles.fg = { hex = fg, source = "fg" }
-  roles.comment = comment_role(theme, notes)
   roles.accent = accent_role(theme, roles, floor, notes)
   note_lift(notes, "accent", roles.accent, bg)
   roles.landmark = landmark_role(theme, roles)
@@ -541,9 +626,6 @@ function M.solve(theme, opts)
   for _, role in ipairs(M.PALETTE) do
     roles[role.name] = from_slot(theme, natural_slot(theme, role.slots), floor)
     note_lift(notes, role.name, roles[role.name], bg)
-  end
-  if voice then
-    roles.constant = roles.number -- numbers are constants, in every voice
   end
 
   local surface_text = M.surface_text(roles, bg)

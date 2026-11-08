@@ -3,6 +3,7 @@
 local F = require("fixtures")
 local T = require("harness")
 local Compiler = require("colorrex.compiler")
+local Roles = require("colorrex.roles")
 local Config = require("colorrex.config")
 
 local OPTS = Config.resolve()
@@ -136,18 +137,30 @@ T.test("repair: the lesser role moves, so a theme keeps its types", function()
     },
   }), PLAIN).roles
   T.eq(roles.type.slot, 3)
-  T.eq(roles.number.slot, 1)
+  T.ok(roles.failure.slot == 1 or roles.failure.slot == 9, "failure keeps a red of its own")
+  T.ok(roles.failure.hex ~= roles.type.hex)
 end)
 
-T.test("number: wears the constant's color, because it is a constant", function()
+T.test("value: a number takes the string's bright partner, and never failure's color", function()
   local roles = Compiler.compile(F.theme(), OPTS).roles
-  T.eq(roles.number.hex, roles.constant.hex)
+  T.eq(roles.string.slot, 2)
+  T.eq(roles.number.slot, 10)
+  T.ok(roles.number.hex ~= roles.failure.hex)
   T.ok(roles.number.hex ~= roles.type.hex)
 end)
 
-T.test("number: gives way to the roles a theme is known by", function()
-  -- Four colors for six roles: red is the only home left for functions, so a number
-  -- that took it would leave keywords and functions as one color.
+T.test("value: with no bright partner to spare, a number wears the string's color", function()
+  -- A digit and a quote say what they are by shape; failure's color is not for loan.
+  local ansi = F.theme().ansi
+  ansi[10] = ansi[2]
+  local roles = Compiler.compile(F.theme({ ansi = ansi }), OPTS).roles
+  T.eq(roles.number.hex, roles.string.hex)
+end)
+
+T.test("failure: in a palette too small for every role, failure keeps its color to itself", function()
+  -- Four colors for seven roles, so some pair must share. It is never failure: nil in a
+  -- function's color would say a call where there is none. A pair that shares a color
+  -- differs in weight or slant instead.
   local function palette(red, green, yellow, purple)
     local ansi = F.theme().ansi
     ansi[1], ansi[9], ansi[11] = red, yellow, yellow
@@ -155,22 +168,29 @@ T.test("number: gives way to the roles a theme is known by", function()
     ansi[3], ansi[4], ansi[5], ansi[12], ansi[13] = yellow, purple, purple, purple, purple
     return F.theme({ ansi = ansi })
   end
-  local roles = Compiler.compile(palette("#ff6767", "#61ffca", "#ffca85", "#a277ff"), OPTS).roles
-  T.eq(roles.func.hex, "#ff6767")
-  T.ok(roles.number.hex ~= roles.func.hex)
-  T.ok(roles.keyword.hex ~= roles.func.hex)
-  T.ok(roles.keyword.hex ~= roles.string.hex)
+  local compiled = Compiler.compile(palette("#ff6767", "#61ffca", "#ffca85", "#a277ff"), OPTS)
+  local roles, styles = compiled.roles, compiled.styles
+  T.eq(roles.failure.hex, "#ff6767")
+  local code = { "keyword", "func", "string", "type", "operator", "number" }
+  for _, name in ipairs(code) do
+    T.ok(roles[name].hex ~= roles.failure.hex, name .. " borrows failure's color")
+  end
+  for i = 1, 5 do
+    for j = i + 1, 5 do
+      local a, b = code[i], code[j]
+      if roles[a].hex == roles[b].hex then
+        T.ok(not Roles.same_style(styles[a], styles[b]), a .. " and " .. b .. " look identical")
+      end
+    end
+  end
 end)
 
-T.test("number: past yellow and a taken constant, goes to bright red", function()
-  -- Red reads as the keyword here and yellow has no bright partner to spare, so the
-  -- number cannot follow the constant, and the constant keeps a color of its own.
+T.test("failure: when red reads as the keyword, failure moves to bright red", function()
   local ansi = F.theme().ansi
-  ansi[1], ansi[11] = ansi[5], ansi[3]
+  ansi[1] = ansi[5]
   local compiled = Compiler.compile(F.theme({ ansi = ansi }), OPTS)
-  T.eq(compiled.roles.number.slot, 9)
-  T.eq(compiled.groups.Constant.fg, compiled.roles.constant.hex)
-  T.ok(compiled.roles.constant.hex ~= compiled.roles.number.hex)
+  T.eq(compiled.roles.failure.slot, 9)
+  T.ok(compiled.roles.failure.hex ~= compiled.roles.keyword.hex)
 end)
 
 T.test("promises: a field too faint to read is caught, unless it is the theme's fg", function()

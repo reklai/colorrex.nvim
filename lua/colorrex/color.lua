@@ -139,6 +139,28 @@ end
 --- steadily along lightness, so bisection finds the smallest move. Every
 --- background has at least 4.58:1 against black or white, so any floor up to
 --- that is reachable.
+--- `hex` moved toward `bg` in lightness only, with hue and chroma kept, until its
+--- contrast with `bg` is at most `ceiling`: the opposite of lift, for a color that is
+--- louder than it should be. A color already quiet enough comes back unchanged.
+function M.quiet(hex, bg, ceiling)
+  if M.contrast(hex, bg) <= ceiling then
+    return hex
+  end
+  local L, a, b = M.oklab(hex)
+  local goal = M.oklab(bg)
+  local lo, hi, best = L, goal, hex
+  for _ = 1, 16 do
+    local mid = (lo + hi) / 2
+    local candidate = M.from_oklab(mid, a, b)
+    if M.contrast(candidate, bg) <= ceiling then
+      best, hi = candidate, mid
+    else
+      lo = mid
+    end
+  end
+  return best
+end
+
 function M.lift(hex, bg, floor)
   if M.contrast(hex, bg) >= floor then
     return hex

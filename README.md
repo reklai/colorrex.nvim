@@ -13,15 +13,19 @@ as each theme is previewed, with no other configuration.</sub></p>
 > below are what it is working toward, and the tests hold it to them. If something
 > looks wrong, please [report it](#reporting-a-problem).
 
-It works only in terminals built on libghostty, which today means Ghostty and Rex.
-In any other terminal it stays grey and says so once.
+It is built for terminals on libghostty, such as Ghostty and Rex, and works through
+tmux. herdr, a multiplexer built on libghostty, should work too: its source answers
+the same request, but it has not been tested in a real herdr yet. Other terminals that
+answer the standard color queries may work, untested. If the terminal reports no
+palette, colorrex stays grey and says so once.
 
 ```lua
 vim.cmd.colorscheme("colorrex")
 ```
 
-That is the whole setup. It asks your terminal for its 19 colors in one request,
-and compiles them into over 300 highlight groups.
+That is the whole setup. It asks your terminal for its 19 colors in one request
+(through tmux, one question per color), and compiles them into over 300 highlight
+groups.
 
 ## The promises
 
@@ -29,8 +33,10 @@ There are three: faithful, practical, and voice. They are goals to work towards.
 
 **Faithful.** Your foreground and background are never altered. Every syntax
 color is one of your theme's ANSI colors, unchanged unless it is unreadable. A
-color below 3:1 contrast moves in lightness only, the minimum needed, so it
-keeps its hue. Text also stays readable on whatever is behind it: a selection, a
+color below 3:1 contrast (the default `contrast`) moves in lightness only, the minimum
+needed, so it keeps its hue. Comments stay quieter than the code they annotate, in light themes as in
+dark: a bright black as loud as the code eases toward the background, in lightness
+only. Text also stays readable on whatever is behind it: a selection, a
 highlighted reference, a snippet placeholder and a float all ease off until code and
 comments can be read through them, and colored text in a float is lifted against the
 float. `:ColorRex explain` shows where any color came from.
@@ -38,17 +44,30 @@ float. `:ColorRex explain` shows where any color came from.
 **Practical.** Color goes where it tells you something the shape of the text does
 not. A field, a method and a variable are all just words, so color separates them:
 fields get a color of their own, off the hues of keywords, functions and types, so
-`req.Body` shows which part is the object. Every pair of syntax roles can be told
-apart, by color where the palette allows and by weight or slant where it does not.
+`req.Body` shows which part is the object, where the palette has a color to spare.
+Keywords, functions, strings, types, failure and operators can always be told apart,
+by color where the palette allows and by weight, slant or underline where it does not.
 `=` and `self` can be read on sight and appear on nearly every line, so they stay
-quiet, and red is left to mean something.
+quiet.
+
+One meaning wears one color, in every language. Everything that can fail or be
+missing shares one color, ANSI red by convention or wherever the theme's voice puts
+`nil`: `nil`, `null`, `None`, `undefined`, `err`, `Err`, error types, `throw`, `raise`,
+`catch`, `rescue`, `panic`, `errdefer`, `orelse`, and Rust's `?`. Nothing else in code
+looks like it: where a palette is too small to give it a color of its own, it differs
+by style. So the eye learns where code can go wrong, in Go, Zig, Rust or TypeScript
+alike. This needs Tree-sitter highlighting; see [Languages](#languages). Numbers,
+booleans and named constants are values, in the string's family: a digit's shape
+already says what it is. A diagnostic's severity shows in its underline as well as its
+color, where the terminal draws underline styles, as libghostty does: a curl for an
+error, dashes for a warning, dots for info and hints.
 
 **Voice.** Every theme should look like itself. Each of the twelve chromatic ANSI
 colors has a job on screen, and your cursor color is the accent. A colored cursor sets
 the theme's voice: it takes the keywords, and the other roles arrange around it.
 Without one, roles follow the ANSI convention, the closest thing a terminal theme has
 to its author's intent. Either way they move only as far as it takes to keep code
-readable. So a difference you can see shows, a difference you cannot see almost never
+readable and each meaning in a color of its own. So a difference you can see shows, a difference you cannot see almost never
 does, and a family of themes stays a family. Two themes with the same colors read the
 same in code, because they are. `:ColorRex status` shows every theme's exact id.
 
@@ -64,8 +83,27 @@ only dark and light changes, and nothing at all while its theme picker previews
 themes. So while focus is elsewhere, which it is while the picker is open, Neovim
 asks the terminal for its colors: every 30ms at first, every 250ms after 5 seconds
 with no change, and not at all after a minute with none. Previews show in your code
-as you move through the picker. Run `:ColorRex` in one Neovim and every other
-Neovim on the machine checks its own terminal too.
+as you move through the picker. A change nobody reports shows the next time you
+pause typing: colorrex asks once then, at most every two seconds. Run `:ColorRex` in
+one Neovim and every other Neovim on the machine checks its own terminal too.
+
+### Through tmux and herdr
+
+Neither needs any setup. tmux drops the one-request read unless `allow-passthrough`
+is on, but answers a question per color, which colorrex falls back to by itself.
+tmux never reports the cursor color, so colorrex takes it from the last time this
+machine saw the same sixteen colors whole, and then a theme reads the same inside tmux
+as outside it. If it never has, as on a remote machine, the theme follows the ANSI
+convention there. A herdr pane runs libghostty itself, so from its source it answers
+the same one-request read as the terminal, though it may leave out the cursor color;
+this is not yet tested in a real herdr.
+
+Both pass on dark/light changes at once, and any other change shows when you pause
+typing. Inside Rex, tmux learns a new foreground and background only on a dark/light
+change, so until then it reports the new palette with the last ones it knew.
+`set -g allow-passthrough on` in tmux.conf carries the whole theme, cursor included,
+in one read; it also lets programs inside tmux write to the terminal directly, which
+is why tmux leaves it off. `:ColorRex status` shows which way the colors arrived.
 
 ## Reporting a problem
 
@@ -95,7 +133,7 @@ vim.keymap.set("n", "<leader>ts", "<Plug>(colorrex)")
 
 ## Install
 
-You need Neovim 0.12 or newer, and Ghostty or Rex. With
+You need Neovim 0.12 or newer, and Ghostty or Rex, directly or through tmux. With
 [lazy.nvim](https://github.com/folke/lazy.nvim), this one line is the whole install:
 
 ```lua
@@ -143,7 +181,7 @@ require("colorrex").setup({
   contrast = 3.0,     -- minimum contrast for code, up to 4.5
   voice = true,       -- let a theme's cursor color lead its code
   chunks = false,     -- mark where each chunk of code starts
-  auto = true,        -- also sync on focus, dark/light changes and picker previews
+  auto = true,        -- also sync on focus, dark/light changes, picker previews and typing pauses
 })
 ```
 
@@ -159,19 +197,43 @@ With `chunks = true`, the name at the start of each chunk stands out, so you can
 a file by its shape. It works in any language with Treesitter highlighting, because
 it reads position in the tree and not kinds of token: in tests a chunk starts at
 `describe(...)`, and in source at a function. `if` and `for` are left alone, and only
-the outer two levels count, which keeps these to about 5% of lines. They take your
-cursor color, so a theme's one signature color marks the shape of the code. A cursor
-nearest red gives way to the function color, because red is left to errors.
+the outer two levels count, which kept these to 3-5% of lines when measured in
+TypeScript, TSX, Lua and Python. They take your cursor color, so a theme's one
+signature color marks the shape of the code. A cursor nearest red gives way to the
+function color, so a landmark never reads as failure.
+
+## Languages
+
+There is nothing to set up for any of them. Every language with a Tree-sitter
+highlights query gets its meanings from the capture names grammars share, so a new
+language is covered the day it ships one, as far as its query uses those names. On
+top of that, a short list of words that mean the same thing across languages, such as
+`nil`, `None`, `Nothing`, `err` and `panic`, reads as failure wherever a grammar marks
+it as a name, a constant, a type, a keyword or a call. It names words and never grammar
+nodes, so there is no query to break when a grammar changes; a word a grammar stops
+capturing simply reads by its capture.
+
+Each of these has a short sample, checked against its real grammar: C, C++, C#,
+Elixir, Erlang, Gleam, Go, Haskell, Java, JavaScript, Kotlin, Lua, Odin, PHP, Python,
+Ruby, Rust, Swift, TSX, TypeScript and Zig. `Some`, `Ok`, `True` and `__name__` stay
+values; `None`, `Err` and `nil` do not. Lua and C are checked on every run, since
+Neovim bundles their parsers; the rest wherever their parsers are installed. Bash has
+no syntax for failure, so nothing there is marked.
+
+Without Tree-sitter, a file gets its colors through Vim's own syntax groups, where
+`throw` and its kin still read as failure but `nil` reads as a value. `:ColorRex
+compile` writes the roles but not the word list, which needs the plugin running.
 
 ## How it works
 
 Like libghostty, the part that does the work knows nothing about its host. Only
-`lua/colorrex/neovim.lua` has side effects; the compiler and the terminal
-protocol run under plain LuaJIT. `test/architecture` pins which module may
+`lua/colorrex/neovim.lua` touches the outside world, besides the entry point and
+`:checkhealth`; the compiler, the meanings and the terminal protocol run under plain
+LuaJIT. `test/architecture` pins which module may
 depend on which.
 
 ```sh
-make test     # everything but real terminals
+make test     # everything but real terminals; set COLORREX_PARSERS for more languages
 make e2e      # real Neovim in real Rex blocks and Ghostty windows
 make matrix   # all of it, against Neovim 0.11.7, 0.12.0, stable and nightly
 ```

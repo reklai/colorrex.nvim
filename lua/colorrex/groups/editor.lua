@@ -102,10 +102,11 @@ return function(define)
   G.Removed = { fg = "error" }
 
   -- Spelling ------------------------------------------------------------------
-  G.SpellBad = { sp = "error", undercurl = true }
-  G.SpellCap = { sp = "warn", undercurl = true }
-  G.SpellLocal = { sp = "info", undercurl = true }
-  G.SpellRare = { sp = "keyword", undercurl = true }
+  -- A misspelling is not an error in the code, so it is never a curl.
+  G.SpellBad = { sp = "error", underdotted = true }
+  G.SpellCap = { sp = "warn", underdotted = true }
+  G.SpellLocal = { sp = "info", underdotted = true }
+  G.SpellRare = { sp = "keyword", underdotted = true }
 
   return G
 end

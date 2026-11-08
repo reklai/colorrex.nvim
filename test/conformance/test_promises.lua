@@ -61,8 +61,15 @@ local HARD = {
 }
 
 -- Lowered by hand as the compiler improves. Raising one means it got worse.
-local CLASH_LIMIT, RECAST_LIMIT, FADED_LIMIT, TWIN_LIMIT = 11, 45, 19, 34
-local VOICE_RECAST_LIMIT, VOICED_FLOOR = 20, 255
+--
+-- Raised once, on purpose, from 45 and 20: failure now keeps nil's color to itself
+-- across every theme, which numbers used to share in 765 of them. That cost two more
+-- recast themes, and three more that a nudge recasts. Of those three extra, HaX0R Gr33N,
+-- HaX0R R3D and Retro are one-hue palettes where every role already sits on another;
+-- Atelier Sulphurpool and Hivacruz sit between two castings. Aura and Green Phosphor
+-- CRT became stable.
+local CLASH_LIMIT, RECAST_LIMIT, FADED_LIMIT, TWIN_LIMIT = 11, 47, 19, 34
+local VOICE_RECAST_LIMIT, VOICED_FLOOR = 23, 255
 
 local function verify(name, theme)
   local colorscheme = Compiler.compile(theme, OPTS)
@@ -191,7 +198,7 @@ T.test("voice: a theme's color stays off screen only if it would look like one t
 end)
 
 --- How many code roles visibly differ between two compiled colorschemes.
-local CODE_ROLES = { "keyword", "func", "string", "type", "number", "operator", "comment", "preproc", "special", "constant" }
+local CODE_ROLES = { "keyword", "func", "string", "type", "failure", "number", "operator", "comment", "preproc", "special" }
 
 local function role_colors(colorscheme)
   local out = {}
@@ -535,7 +542,9 @@ T.test("practical: a style only separates colors when the palette truly cannot",
   local total, flat = 0, 0
   for _, theme in pairs(themes) do
     local roles = Compiler.compile(theme, OPTS).roles
-    local names = { "keyword", "func", "string", "type", "number", "operator" }
+    -- The roles held apart. A number may share the string's color: it is a value too,
+    -- and a digit's shape says what it is.
+    local names = { "keyword", "func", "string", "type", "failure", "operator" }
     local touching = false
     for i = 1, #names do
       for j = i + 1, #names do

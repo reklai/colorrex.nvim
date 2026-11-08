@@ -25,7 +25,10 @@ local OVER_SELECTION = { TelescopeMatching = "base", BlinkCmpLabelMatch = "eleme
 
 -- A group that sets a fill and no text lies under whatever text is there, which is
 -- code more often than not. These are the exceptions: nothing is ever read on them.
-local TEXTLESS = { FloatShadow = true, FloatShadowThrough = true, PmenuSbar = true, PmenuThumb = true, TabLineFill = true }
+local TEXTLESS = {
+  FloatShadow = true, FloatShadowThrough = true, PmenuSbar = true, PmenuThumb = true, TabLineFill = true,
+  NotifyBackground = true, -- never drawn: what nvim-notify fades toward
+}
 
 -- Fills that do set their text, and still have code drawn on them by others: hover
 -- docs and completion previews highlight code in a float.

@@ -34,6 +34,10 @@ return function(define)
   G.OilFile = { fg = "fg" }
   G.MiniIndentscopeSymbol = { fg = "border_strong", nocombine = true }
   G.MiniIndentscopeSymbolOff = { fg = "border_strong", nocombine = true }
+  -- mini.jump2d draws its labels over code in fixed white on black, whatever the theme.
+  G.MiniJump2dSpot = { fg = "on_accent", bg = "accent", bold = true, nocombine = true }
+  G.MiniJump2dSpotUnique = { fg = "on_warn", bg = "warn", bold = true, nocombine = true }
+  G.MiniJump2dSpotAhead = { fg = "fg", bg = "element", nocombine = true }
   G.FidgetTitle = { fg = "accent" }
   G.FidgetTask = { fg = "comment" }
   G.MasonHeader = { fg = "on_accent", bg = "accent", bold = true }
@@ -45,6 +49,17 @@ return function(define)
   G.LazyButton = { fg = "fg", bg = "element" }
   G.LazyButtonActive = { fg = "on_accent", bg = "accent" }
   G.LazySpecial = { fg = "accent" }
+  -- Never drawn: nvim-notify fades a notification toward this. It reads Normal's
+  -- background by default, which a transparent theme leaves unset, so it warns on
+  -- screen and fades toward black. This keeps the theme's own background even then.
+  G.NotifyBackground = { bg = "base" }
+  -- nvim-notify ships fixed colors for each level, the same in every theme. These
+  -- are the roles diagnostics use, so a level reads the same wherever it appears.
+  for level, role in pairs({ ERROR = "error", WARN = "warn", INFO = "info", DEBUG = "comment", TRACE = "hint" }) do
+    G["Notify" .. level .. "Border"] = { fg = role }
+    G["Notify" .. level .. "Icon"] = { fg = role }
+    G["Notify" .. level .. "Title"] = { fg = role }
+  end
   G.GitSignsAdd = { fg = "ok" }
   G.GitSignsChange = { fg = "warn" }
   G.GitSignsDelete = { fg = "error" }

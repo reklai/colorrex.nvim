@@ -7,6 +7,7 @@
 local Chunks = require("colorrex.chunks")
 local Compiler = require("colorrex.compiler")
 local Config = require("colorrex.config")
+local Meanings = require("colorrex.meanings")
 local Report = require("colorrex.report")
 local Terminal = require("colorrex.terminal")
 local Theme = require("colorrex.theme")
@@ -30,9 +31,15 @@ local BROADCAST_MS = 30
 -- all. Each ask waits for the last reply, so a slow link cannot pile them up.
 local WATCH = { fast_ms = 30, slow_ms = 250, ease_after_ms = 5000, stop_after_ms = 60000 }
 
+-- A layer between Neovim and the terminal, such as tmux or a herdr pane, passes on
+-- only dark/light changes. So after a pause in typing, at most this often, Neovim
+-- asks once. It is driven by CursorHold, so nothing runs while Neovim sits idle.
+local PAUSE_MS = 2000
+
 -- Short on purpose. A startup message longer than v:echospace, which is 68 in an
 -- 80-column window, stops Neovim at a hit-enter prompt on every launch.
 local NO_COLORS = "no colors reported; it needs Ghostty or Rex"
+local NO_COLORS_TMUX = "tmux passed on no colors; see :checkhealth colorrex"
 
 function App.new(host, config)
   return setmetatable({
@@ -46,6 +53,8 @@ function App.new(host, config)
     cancel_notice = nil,
     cancel_saved_check = nil,
     cancel_watch = nil,
+    cancel_pause = nil,
+    borrowed = false, -- colors this route hid came from the last full read
     watching = false, -- focus is elsewhere, and this Neovim is asking for changes
     quiet_ms = 0, -- how long the watch has gone without a change
     answered = false, -- the terminal has reported at least one color
@@ -105,6 +114,7 @@ function App:attach()
   self.terminal = Terminal.new({
     send = self.host.send,
     after = self.host.after,
+    tmux = self.host.tmux(),
     on_settle = function(theme, outcome)
       self:settled(theme, outcome)
     end,
@@ -125,6 +135,9 @@ function App:attach()
     end,
     resume = function()
       self:auto_sync("resume")
+    end,
+    pause = function()
+      self:pause()
     end,
     ui_enter = function()
       self:sync("launch")
@@ -159,6 +172,7 @@ function App:detach()
   stop(self, "cancel_retry")
   stop(self, "cancel_notice")
   stop(self, "cancel_saved_check")
+  stop(self, "cancel_pause")
   self:unwatch()
   self.terminal.close()
   self.terminal = nil
@@ -166,20 +180,21 @@ function App:detach()
   self.host.undecorate()
 end
 
---- Draw chunk landmarks, or stop, to match the options.
+--- Draw what the highlighter cannot: the lexicon's meanings always, and chunk
+--- landmarks when asked for.
 function App:shape()
-  if self.config.chunks then
-    self.host.decorate(Chunks.landmarks)
-  else
-    self.host.undecorate()
-  end
+  self.host.decorate({
+    landmarks = self.config.chunks and Chunks.landmarks or nil,
+    refine = Meanings.refine,
+    can_refine = Meanings.can_refine,
+  })
 end
 
 --- Say once that this terminal gave us nothing, so that grey never goes unexplained.
 function App:notice_no_colors()
   if not self.noticed then
     self.noticed = true
-    self.host.notify(NO_COLORS, "warn")
+    self.host.notify(self.host.tmux() and NO_COLORS_TMUX or NO_COLORS, "warn")
   end
 end
 
@@ -203,6 +218,17 @@ function App:auto_sync(reason)
   if self.config.auto then
     self:sync(reason)
   end
+end
+
+--- Typing paused: ask once, in case a layer between us dropped the change.
+function App:pause()
+  if not (self.terminal and self.config.auto) or self.cancel_pause or self.watching then
+    return
+  end
+  self.cancel_pause = self.host.after(PAUSE_MS, function()
+    self.cancel_pause = nil
+  end)
+  self:sync("pause")
 end
 
 --- Focus left: follow theme changes nobody reports, such as a picker's previews.
@@ -260,13 +286,69 @@ function App:sync(reason)
   self.terminal.query()
 end
 
+--- The colors a route hid, filled from what is known. tmux never answers OSC 12, and
+--- knows no fg or bg until the terminal reports a change; a herdr pane leaves the
+--- cursor empty. Each color comes from the best source there is, and nothing is
+--- invented:
+---
+---   1. the last full read on this machine of the very same sixteen colors, which is
+---      the same theme, so the theme reads the same through a layer as without one;
+---   2. on the xterm route only, the fg and bg this Neovim last knew. tmux has told
+---      us nothing about them, and the palette it did report is fresh.
+---
+--- A color the route reported is never replaced. OSC 21 states a missing color, as
+--- an unthemed Rex block does, so that is the terminal's answer and not a gap.
+function App:borrow_hidden(theme)
+  for slot = 0, 15 do
+    if not theme.ansi[slot] then
+      return theme -- not the whole palette: an unthemed Rex block, or a query cut short
+    end
+  end
+  self.borrowed = false
+  if theme.fg and theme.bg and theme.cursor then
+    return theme
+  end
+  local unknown = self.terminal and self.terminal.route() == "xterm"
+  local copy = { fg = theme.fg, bg = theme.bg, cursor = theme.cursor, ansi = {} }
+  for slot = 0, 15 do
+    copy.ansi[slot] = theme.ansi[slot]
+  end
+
+  local saved = Theme.parse(self.host.saved_theme() or "")
+  local same = Theme.completeness(saved) == "full"
+  for slot = 0, 15 do
+    same = same and saved.ansi[slot] == theme.ansi[slot]
+  end
+  for _, key in ipairs({ "fg", "bg", "cursor" }) do
+    same = same and (not theme[key] or theme[key] == saved[key])
+  end
+  if same then
+    for _, key in ipairs({ "fg", "bg", "cursor" }) do
+      if not copy[key] and (key == "cursor" or unknown) then
+        copy[key], self.borrowed = saved[key], "the last full read of these colors"
+      end
+    end
+    return copy
+  end
+
+  local current = self.colorscheme and self.colorscheme.completeness == "full" and self.colorscheme.theme
+  if unknown and current and not (theme.fg and theme.bg) then
+    copy.fg, copy.bg = theme.fg or current.fg, theme.bg or current.bg
+    self.borrowed = "the last fg and bg known here, as tmux has not reported them"
+    copy.unsaved = true -- shown, but never saved: this machine did not see it whole
+  end
+  return copy
+end
+
 --- A query finished, complete or not.
 function App:settled(theme, outcome)
+  theme = self:borrow_hidden(theme)
   local completeness = Theme.completeness(theme)
   self.last.completeness, self.last.outcome = completeness, outcome
-  self:track_silence(completeness)
+  self:track_silence(next(theme.ansi) ~= nil)
   local changed = self:accept(theme, completeness)
-  self:schedule_retry(completeness)
+  -- Colors filled in from what was last known are a stand-in, so keep asking.
+  self:schedule_retry(theme.unsaved and "partial" or completeness)
   self:announce_result(completeness, changed)
   if self.watching then
     self.quiet_ms = changed and 0 or self.quiet_ms
@@ -277,9 +359,12 @@ end
 --- A terminal that never answers gets one notice. This looks at answers rather than
 --- at what started the query: terminals send a focus event the moment reporting is
 --- enabled, so a launch query is often not the one that settles.
-function App:track_silence(completeness)
+---
+--- A palette is what counts as an answer. A terminal can report only fg and bg, as
+--- Neovim's own :terminal does, and that leaves code as grey as no answer at all.
+function App:track_silence(has_palette)
   stop(self, "cancel_notice")
-  if completeness ~= "none" then
+  if has_palette then
     self.answered = true
   elseif not self.answered then
     self.cancel_notice = self.host.after(NOTICE_MS, function()
@@ -315,7 +400,7 @@ function App:adopt(theme)
     return false
   end
   self.colorscheme = colorscheme
-  if colorscheme.completeness == "full" then
+  if colorscheme.completeness == "full" and not theme.unsaved then
     self:save_theme(theme)
   end
   self:repaint()
@@ -390,7 +475,7 @@ function App:current()
   return self.colorscheme
 end
 
-function App:status()
+function App:raw_status()
   local colorscheme = self:current()
   return {
     source = self.source,
@@ -405,7 +490,16 @@ function App:status()
     adjustments = #colorscheme.notes,
     last = self.last,
     auto = self.config.auto,
+    route = self.terminal and self.terminal.route() or nil,
+    tmux = self.host.tmux(),
+    borrowed = self.borrowed,
   }
+end
+
+function App:status()
+  local status = self:raw_status()
+  status.route_text = Report.route(status)
+  return status
 end
 
 function App:report_status()
