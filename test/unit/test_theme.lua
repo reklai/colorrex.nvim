@@ -65,7 +65,7 @@ T.test("casting: a palette with nothing wrong keeps the convention", function()
   local Casting = require("colorrex.roles.casting")
   local picks = {
     keyword = { hex = "#bc8cff" }, func = { hex = "#58a6ff" }, type = { hex = "#d29922" },
-    number = { hex = "#e06c75" }, operator = { hex = "#39c5cf" },
+    failure = { hex = "#e06c75" }, operator = { hex = "#39c5cf" },
     preproc = { hex = "#d2a8ff" }, special = { hex = "#ffa198" },
   }
   T.eq(Casting.cast(picks, "#3fb950"), Casting.CONVENTION)
@@ -86,7 +86,7 @@ T.test("casting: a clash between the leading roles moves as little as it takes",
   local Casting = require("colorrex.roles.casting")
   local picks = {
     keyword = { hex = "#d29922" }, func = { hex = "#e3b341" }, type = { hex = "#bc8cff" },
-    number = { hex = "#58a6ff" }, operator = { hex = "#39c5cf" },
+    failure = { hex = "#58a6ff" }, operator = { hex = "#39c5cf" },
     preproc = { hex = "#d2a8ff" }, special = { hex = "#ffa198" },
   }
   local casting = Casting.cast(picks, "#3fb950")
@@ -103,7 +103,7 @@ T.test("casting: a role never takes the color of strings when it can avoid it", 
   local Casting = require("colorrex.roles.casting")
   local picks = {
     keyword = { hex = "#3fb950" }, func = { hex = "#58a6ff" }, type = { hex = "#d29922" },
-    number = { hex = "#e06c75" }, operator = { hex = "#39c5cf" },
+    failure = { hex = "#e06c75" }, operator = { hex = "#39c5cf" },
     preproc = { hex = "#bc8cff" }, special = { hex = "#ffa198" },
   }
   Casting.cast(picks, "#3fb950")
@@ -122,6 +122,20 @@ T.test("identity: changing an option never changes a theme's id", function()
   local a = Compiler.compile(F.theme(), Config.resolve())
   local b = Compiler.compile(F.theme(), Config.resolve({ contrast = 4.5, transparent = false, voice = false }))
   T.eq(a.id, b.id)
+end)
+
+T.test("transparent: a plugin that blends toward the background still gets the theme's", function()
+  -- Normal has no background to read, so nvim-notify would warn and fade to black.
+  local colorscheme = Compiler.compile(F.theme({ bg = "#1c2028" }), Config.resolve({ transparent = true }))
+  T.eq(colorscheme.groups.Normal.bg, nil)
+  T.eq(colorscheme.groups.NotifyBackground.bg, "#1c2028")
+end)
+
+T.test("plugins: a notification's level wears the theme's color, as a diagnostic does", function()
+  local colorscheme = Compiler.compile(F.theme(), Config.resolve())
+  T.eq(colorscheme.groups.NotifyERRORTitle.fg, colorscheme.groups.DiagnosticError.fg)
+  T.eq(colorscheme.groups.NotifyWARNIcon.fg, colorscheme.groups.DiagnosticWarn.fg)
+  T.eq(colorscheme.groups.NotifyINFOBorder.fg, colorscheme.groups.DiagnosticInfo.fg)
 end)
 
 T.test("casting: a background tint changes nothing in code, by default", function()
@@ -234,11 +248,15 @@ T.test("voice: a cursor too faint to have a hue is not a voice", function()
   T.eq(Compiler.compile(theme, VOICED).voice, nil)
 end)
 
-T.test("voice: constants stay with numbers, in every voice", function()
+T.test("voice: nil keeps the color its voice gives it, and owns it", function()
+  -- The red voice puts keywords on red, and nil where numbers used to be.
   local compiled = Compiler.compile(F.theme({ cursor = F.theme().ansi[1] }), VOICED)
-  T.eq(compiled.roles.number.slot, 5)
-  T.eq(compiled.roles.constant.hex, compiled.roles.number.hex)
-  T.eq(compiled.groups.Constant.fg, compiled.roles.number.hex)
+  local R, G = compiled.roles, compiled.groups
+  T.eq(R.failure.slot, 5)
+  T.eq(G["@keyword.exception"].fg, R.failure.hex)
+  T.eq(G.ColorRexFailure.fg, R.failure.hex)
+  T.ok(R.number.hex ~= R.failure.hex, "a number never wears failure's color")
+  T.eq(G.Constant.fg, R.number.hex, "a named constant is a value")
 end)
 
 T.test("voice: says why, and leaves the comment and the accent alone", function()
@@ -377,7 +395,7 @@ T.test("practical: red means something, so a builtin is what it is", function()
   local compiled = Compiler.compile(F.theme({ cursor = false }), Config.resolve())
   local G, R = compiled.groups, compiled.roles
   T.eq(G["@function.builtin"].fg, R.func.hex)
-  T.eq(G["@constant.builtin"].fg, R.constant.hex)
+  T.eq(G["@constant.builtin"].fg, R.number.hex, "a value, until the lexicon says it is nil")
   T.eq(G["@module.builtin"].fg, R.type.hex)
   T.eq(G["@attribute.builtin"].fg, R.type.hex)
 end)
@@ -393,8 +411,36 @@ T.test("practical: words that only color can separate keep it", function()
   T.eq(G["@string.escape"].fg, R.operator.hex)
 end)
 
-T.test("roles: red reaches code, as constants", function()
-  local groups = Compiler.compile(F.theme(), Config.resolve()).groups
+T.test("roles: red reaches code, as failure and nothing else", function()
+  local compiled = Compiler.compile(F.theme(), Config.resolve())
+  local groups = compiled.groups
+  T.eq(groups["@keyword.exception"].fg, "#e06c75")
+  T.eq(groups.ColorRexFailure.fg, "#e06c75")
+  T.eq(groups.Exception.fg, "#e06c75")
   T.eq(groups.Constant.fg, groups["@constant"].fg)
-  T.eq(groups.Constant.fg, "#e06c75")
+  T.ok(groups.Constant.fg ~= "#e06c75", "constants are values")
+end)
+
+T.test("diagnostics: severity reads by shape as well as by color", function()
+  local G = Compiler.compile(F.theme(), Config.resolve()).groups
+  T.ok(G.DiagnosticUnderlineError.undercurl)
+  T.ok(G.DiagnosticUnderlineWarn.underdashed)
+  T.ok(G.DiagnosticUnderlineInfo.underdotted)
+  T.ok(G.DiagnosticUnderlineHint.underdotted)
+  T.ok(not G.SpellBad.undercurl, "a misspelling never takes an error's shape")
+end)
+
+T.test("light: a loud grey comment eases below the code, keeping its hue", function()
+  -- One Half Light's bright black is a strong grey, louder on white than its code.
+  local Color = require("colorrex.color")
+  local theme = F.theme({ fg = "#383a42", bg = "#fafafa", cursor = false, ansi = {
+    [0] = "#383a42", [1] = "#e45649", [2] = "#50a14f", [3] = "#c18401", [4] = "#0184bc", [5] = "#a626a4",
+    [6] = "#0997b3", [7] = "#fafafa", [8] = "#4f525e", [9] = "#e06c75", [10] = "#98c379", [11] = "#e5c07b",
+    [12] = "#61afef", [13] = "#c678dd", [14] = "#56b6c2", [15] = "#ffffff" } })
+  local roles = Compiler.compile(theme, Config.resolve()).roles
+  local comment = Color.contrast(roles.comment.hex, "#fafafa")
+  T.ok(comment < Color.contrast(roles.keyword.hex, "#fafafa"), "quieter than the code")
+  T.ok(comment >= 2.5 - 0.01, "and still readable")
+  T.eq(roles.comment.from, "#4f525e")
+  T.ok(Color.hue_gap(roles.comment.hex, "#4f525e") < 12 or Color.chroma("#4f525e") < 0.03, "the same grey, only lighter")
 end)

@@ -26,6 +26,7 @@ function F.fake_host(overrides)
   }
   function host.ui_ready() return host.ready end
   function host.background() return host.bg end
+  function host.tmux() return host.in_tmux == true end
   function host.send(text) host.sent[#host.sent + 1] = text end
   function host.after(ms, fn)
     local timer = { at = host.now + ms, fn = fn }
@@ -92,6 +93,24 @@ function F.reply(theme)
     parts[#parts + 1] = ("%d=%s"):format(slot, rgb(theme.ansi and theme.ansi[slot]))
   end
   return "\027]21;" .. table.concat(parts, ";")
+end
+
+--- The xterm replies tmux sends for `theme`, one sequence each, in its 16-bit form.
+--- tmux never answers OSC 12, so there is no cursor unless `cursor` asks for one.
+function F.xterm_replies(theme, cursor)
+  local function rgb(hex)
+    return "rgb:" .. hex:gsub("#(%x%x)(%x%x)(%x%x)", "%1%1/%2%2/%3%3")
+  end
+  local out = {}
+  if cursor and theme.cursor then
+    out[#out + 1] = "\027]12;" .. rgb(theme.cursor)
+  end
+  out[#out + 1] = "\027]10;" .. rgb(theme.fg)
+  out[#out + 1] = "\027]11;" .. rgb(theme.bg)
+  for slot = 0, 15 do
+    out[#out + 1] = ("\027]4;%d;%s"):format(slot, rgb(theme.ansi[slot]))
+  end
+  return out
 end
 
 return F

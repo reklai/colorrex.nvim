@@ -23,21 +23,23 @@ local Color = require("colorrex.color")
 
 local M = {}
 
-M.ROLES = { "keyword", "func", "type", "number", "operator", "preproc", "special" } -- the roles that move
+M.ROLES = { "keyword", "func", "type", "failure", "operator", "preproc", "special" } -- the roles that move
 M.CONVENTION = 1 -- the arrangement that moves nothing
 M.SAME_HUE = 25 -- degrees apart, below which two colors read as one family
 
 -- The six voices, in slots. `anchor` is the color a cursor has to sit nearest. Blue
 -- leans on Nord, green on Solarized, cyan on Rose Pine, red on Monokai and Gruvbox, and
 -- magenta is the convention. Yellow has no precedent. With red left to errors wherever
--- a row can spare it, operators take their keyword's bright partner.
+-- a row can spare it, operators take their keyword's bright partner. `failure` is the
+-- color of nil and of everything that fails: whatever a voice gives it, nothing else
+-- in code shares it, so in every language an eye learns where things can go wrong.
 M.VOICES = {
-  { name = "magenta", anchor = 5, roles = { keyword = 5, func = 4, string = 2, type = 3, number = 1, operator = 6 } },
-  { name = "red", anchor = 1, roles = { keyword = 1, func = 2, string = 3, type = 6, number = 5, operator = 4 } },
-  { name = "blue", anchor = 4, roles = { keyword = 4, func = 6, string = 2, type = 3, number = 5, operator = 12 } },
-  { name = "green", anchor = 2, roles = { keyword = 2, func = 4, string = 6, type = 3, number = 5, operator = 10 } },
-  { name = "yellow", anchor = 3, roles = { keyword = 3, func = 4, string = 2, type = 6, number = 5, operator = 11 } },
-  { name = "cyan", anchor = 6, roles = { keyword = 6, func = 5, string = 3, type = 4, number = 2, operator = 14 } },
+  { name = "magenta", anchor = 5, roles = { keyword = 5, func = 4, string = 2, type = 3, failure = 1, operator = 6 } },
+  { name = "red", anchor = 1, roles = { keyword = 1, func = 2, string = 3, type = 6, failure = 5, operator = 4 } },
+  { name = "blue", anchor = 4, roles = { keyword = 4, func = 6, string = 2, type = 3, failure = 5, operator = 12 } },
+  { name = "green", anchor = 2, roles = { keyword = 2, func = 4, string = 6, type = 3, failure = 5, operator = 10 } },
+  { name = "yellow", anchor = 3, roles = { keyword = 3, func = 4, string = 2, type = 6, failure = 5, operator = 11 } },
+  { name = "cyan", anchor = 6, roles = { keyword = 6, func = 5, string = 3, type = 4, failure = 2, operator = 14 } },
 }
 
 local LEADS = 3 -- the first three of ROLES are read side by side
@@ -119,7 +121,7 @@ function M.same_hue(x, y)
 end
 
 --- Whether this voice would blur roles read side by side: any two leads in one hue, or
---- types and numbers, which share lines like `count: int = 3`.
+--- types and failure, which share lines like `(n int, err error)`.
 function M.blurs(picks)
   for i = 1, LEADS do
     for j = i + 1, LEADS do
@@ -128,7 +130,7 @@ function M.blurs(picks)
       end
     end
   end
-  return M.same_hue(picks.type.hex, picks.number.hex)
+  return M.same_hue(picks.type.hex, picks.failure.hex)
 end
 
 --- The voice whose anchor sits nearest `cursor` in hue. A palette without a usable

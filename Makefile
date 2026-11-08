@@ -1,4 +1,4 @@
-.PHONY: test unit conformance fault architecture integration e2e e2e-rex e2e-ghostty matrix docs verify
+.PHONY: test unit conformance fault architecture integration reading e2e e2e-rex e2e-ghostty matrix docs verify
 
 # NVIM is the binary the Neovim lanes run under; LUAJIT runs the pure ones.
 NVIM ?= nvim
@@ -12,6 +12,13 @@ unit conformance fault architecture:
 
 integration:
 	$(NVIM) --headless --clean -l test/run.lua integration "$(FILTER)"
+
+# Meanings across languages. Lua and C always run; the rest run where their parsers
+# are: an nvim-treesitter install, or COLORREX_PARSERS (a parser site) and
+# COLORREX_QUERIES (a queries runtime). `make reading` regenerates the fixture the
+# pure reading test uses, from test/support/snippets, with the same two variables.
+reading:
+	$(NVIM) --headless --clean -l test/support/tools/reading_fixture.lua
 
 # Real Neovim in real terminals. Not part of `test`, and NVIM is the binary under
 # test. e2e-rex runs from inside Rex; e2e-ghostty opens short-lived windows.

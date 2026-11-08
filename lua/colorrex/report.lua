@@ -3,6 +3,19 @@
 -- notification level.
 local M = {}
 
+--- How the colors reach Neovim, in the words a person would use for it.
+function M.route(status)
+  if status.route == "kitty" then
+    return status.tmux and "one OSC 21 request, through tmux's passthrough" or "one OSC 21 request"
+  end
+  if status.route == "xterm" then
+    local cursor = status.borrowed and ("hidden colors from " .. status.borrowed)
+      or "no cursor color (allow-passthrough on would carry it)"
+    return (status.tmux and "one query per color, answered by tmux; " or "one query per color; ") .. cursor
+  end
+  return "not known yet"
+end
+
 function M.status(status)
   local last = status.last
   local summary = not last.reason and "not yet"
@@ -14,6 +27,7 @@ function M.status(status)
       status.voice and ("%s voice"):format(status.voice) or ("casting %d"):format(status.casting)),
     ("colors    fg %s  bg %s  accent %s"):format(status.fg, status.bg, status.accent),
     ("last sync %s"):format(summary),
+    ("route     %s"):format(M.route(status)),
     ("auto      %s"):format(status.auto and "on (focus, dark/light changes, and a watch while unfocused)" or "off (:ColorRex only)"),
     ("adjusted  %d (see :ColorRex check)"):format(status.adjustments),
   }, "\n")

@@ -7,6 +7,9 @@ local M = {}
 
 local LANDMARK_GROUP = "ColorRexLandmark"
 local LANDMARK_PRIORITY = 130 -- above Treesitter and LSP tokens, below diagnostics
+local MEANING_GROUP = "ColorRexFailure"
+local MEANING_PRIORITY = 126 -- above Treesitter (100) and LSP tokens (125), so `err` stays failure
+local MAX_WORD = 40 -- the lexicon never reads anything longer
 
 function M.new()
   local host = {}
@@ -24,6 +27,12 @@ function M.new()
       end
     end
     return false
+  end
+
+  --- Whether a tmux sits between Neovim and the terminal. tmux sets this in every
+  --- pane it runs, so it is right even over SSH, when tmux runs on the far side.
+  function host.tmux()
+    return (vim.env.TMUX or "") ~= ""
   end
 
   function host.background()
@@ -99,6 +108,7 @@ function M.new()
     on("FocusGained", handlers.focus)
     on("FocusLost", handlers.blur)
     on("VimResume", handlers.resume)
+    on("CursorHold", handlers.pause)
     on("UIEnter", handlers.ui_enter)
     on("VimLeavePre", handlers.leaving)
     on("ColorScheme", function(ev)
@@ -126,12 +136,43 @@ function M.new()
     end
   end
 
-  --- Draw landmarks on every window as it redraws. Marks are ephemeral, so nothing is
-  --- stored in a buffer, and only the rows on screen are looked at. A buffer without
-  --- Treesitter highlighting is left alone, and nothing here ever starts a parse.
-  function host.decorate(landmarks)
+  --- Draw what the highlighter cannot: chunk landmarks, when asked for, and the
+  --- meanings the lexicon adds, such as `nil` and `err` reading as failure. Marks are
+  --- ephemeral, so nothing is stored in a buffer, and only the rows on screen are looked
+  --- at. A buffer without Treesitter highlighting is left alone, and nothing here ever
+  --- starts a parse: it reads the trees the highlighter already has.
+  ---
+  --- spec: landmarks(root, top, bottom, line) -> marks, or nil;
+  ---       refine(capture, text, lang) -> meaning|nil; can_refine(capture) -> boolean.
+  function host.decorate(spec)
     local namespace = vim.api.nvim_create_namespace(Config.NAME .. ".chunks")
-    local marks = {}
+    local queries = {}
+    local function highlights(lang)
+      if queries[lang] == nil then
+        local ok, query = pcall(vim.treesitter.query.get, lang, "highlights")
+        queries[lang] = ok and query or false
+      end
+      return queries[lang] or nil
+    end
+    local marks, broken = {}, {}
+    local function add(row, mark)
+      marks[row] = marks[row] or {}
+      table.insert(marks[row], mark)
+    end
+    local function refine_tree(tstree, query, lang, buffer, top, bottom)
+      for id, node in query:iter_captures(tstree:root(), buffer, top, bottom + 1) do
+        local capture = "@" .. query.captures[id]
+        if spec.can_refine(capture) then
+          local start_row, start_col, end_row, end_col = node:range()
+          if start_row == end_row and end_col - start_col <= MAX_WORD then
+            local text = vim.treesitter.get_node_text(node, buffer)
+            if spec.refine(capture, text, lang) then
+              add(start_row, { start_col, end_row, end_col, MEANING_GROUP, MEANING_PRIORITY })
+            end
+          end
+        end
+      end
+    end
     vim.api.nvim_set_decoration_provider(namespace, {
       on_win = function(_, _, buffer, top, bottom)
         local highlighter = vim.treesitter.highlighter.active[buffer]
@@ -139,19 +180,40 @@ function M.new()
         if not tree then
           return false
         end
-        marks = landmarks(tree:root(), top, bottom, function(row)
-          return vim.api.nvim_buf_get_lines(buffer, row, row + 1, false)[1]
-        end)
+        marks = {}
+        if spec.landmarks then
+          local found = spec.landmarks(tree:root(), top, bottom, function(row)
+            return vim.api.nvim_buf_get_lines(buffer, row, row + 1, false)[1]
+          end)
+          for row, mark in pairs(found) do
+            add(row, { mark[1], mark[2], mark[3], LANDMARK_GROUP, LANDMARK_PRIORITY })
+          end
+        end
+        if spec.refine then
+          highlighter.tree:for_each_tree(function(tstree, ltree)
+            local lang = ltree:lang()
+            local query = tstree and highlights(lang)
+            if not query or broken[lang] then
+              return
+            end
+            -- Anything wrong here costs only the meanings this adds, for this language,
+            -- once. It never reaches the redraw, which would repeat it on every frame.
+            local ok = pcall(refine_tree, tstree, query, lang, buffer, top, bottom)
+            if not ok then
+              broken[lang] = true
+            end
+          end)
+        end
         return next(marks) ~= nil
       end,
+
       on_line = function(_, _, buffer, row)
-        local mark = marks[row]
-        if mark then
+        for _, mark in ipairs(marks[row] or {}) do
           vim.api.nvim_buf_set_extmark(buffer, namespace, row, mark[1], {
             end_row = mark[2],
             end_col = mark[3],
-            hl_group = LANDMARK_GROUP,
-            priority = LANDMARK_PRIORITY,
+            hl_group = mark[4],
+            priority = mark[5],
             ephemeral = true,
             strict = false,
           })

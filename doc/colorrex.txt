@@ -10,11 +10,43 @@ native Neovim colorscheme. It has no dependencies and needs no configuration.
 With lazy.nvim, installing it is enough: `{ "reklai/colorrex.nvim" }`
 
 Requires Neovim 0.12 or newer and a libghostty terminal, such as Ghostty or
-Rex. Other terminals are not supported: colorrex stays grey there, and says
-so once at startup.
+Rex, and works through tmux with no setup; see |colorrex-tmux|. herdr, a
+multiplexer built on libghostty, should work too, but is not yet tested. If the terminal reports no
+colors, colorrex stays grey and says so once at startup.
 
 colorrex is young, so expect bugs and edge cases nobody has hit yet. If
 something looks wrong, please report it with the output of |:ColorRex| status.
+
+MEANINGS                                                   *colorrex-meanings*
+
+One meaning wears one color in every language, with nothing to configure.
+Whatever color the theme gives nil, everything that can fail or be missing
+wears it, and nothing else does: nil, null, None, undefined, err, Err, error
+types, throw, raise, catch, rescue, panic, errdefer, orelse, and Rust's ?.
+Numbers and booleans are values, in the string's family. Diagnostic severity
+also shows in the underline: a curl for an error, dashes for a warning, dots
+for the rest.
+
+Any language with a Tree-sitter highlights query is covered by the capture
+names grammars share. A short list of words that mean the same thing across
+languages adds failure where a grammar marks one as a name, a constant, a type
+or a call. Tested against the grammars of C, C++, C#, Elixir, Erlang, Gleam,
+Go, Haskell, Java, JavaScript, Kotlin, Lua, Odin, PHP, Python, Ruby, Rust,
+Swift, TSX, TypeScript and Zig.
+
+TMUX AND HERDR                                                 *colorrex-tmux*
+
+A herdr pane runs libghostty itself, so from its source it answers the same
+one-request read as the terminal; this is not yet tested in a real herdr. tmux drops that request unless allow-passthrough is on, so
+colorrex asks one question per color instead, which tmux answers. tmux never
+reports the cursor color; colorrex takes it from the last time this machine
+saw the same sixteen colors whole.
+
+Dark/light changes arrive at once. Other changes show when you pause typing:
+colorrex asks once then, at most every two seconds. For the whole theme in one
+read, add to tmux.conf: >
+    set -g allow-passthrough on
+<
 
 PROMISES                                                   *colorrex-promises*
 
