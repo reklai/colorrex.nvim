@@ -457,10 +457,61 @@ local function picker_suite()
     tuned[1] and tuned[1] < 500 and tuned[2] and tuned[2] < 500, vim.inspect(tuned))
 end
 
+-- What the meanings cost a real redraw. A keystroke or a scroll must cost what it costs
+-- without them, near enough, or the editor stops feeling like itself.
+local function speed_suite()
+  local listen = ("/run/user/%d/crx-e2e-speed.sock"):format(vim.uv.getuid()) -- short: sockets cap paths
+  os.remove(listen)
+  local command = ("COLORREX_ROOT=%s XDG_STATE_HOME=%s exec %s -n --listen %s -u %s/test/e2e/init.lua %s/lua/colorrex/roles.lua")
+    :format(root, work, vim.v.progpath, listen, root, root)
+  local tab = vim.json.decode(rex("window", "new", "-s", session, "speed", "--focus=false", "--json", "--shell=none",
+    "--", "/bin/sh", "-c", command))
+  vim.wait(8000, function() return vim.uv.fs_stat(listen) ~= nil end, 50)
+  wait(1200)
+  local channel = vim.fn.sockconnect("pipe", listen, { rpc = true })
+  local function lua(code, ...) return vim.rpcrequest(channel, "nvim_exec_lua", code, { ... }) end
+  lua("vim.treesitter.start() vim.wait(300)")
+  local scroll = [[
+    vim.cmd("normal! gg")
+    local t = vim.uv.hrtime()
+    for _ = 1, 300 do vim.cmd("normal! \5") vim.cmd("redraw") end
+    return (vim.uv.hrtime() - t) / 1e6 / 300
+  ]]
+  local typing = [[
+    local row
+    for r = 40, 400 do
+      if vim.api.nvim_buf_get_lines(0, r - 1, r, false)[1]:match("^%s+local [%a_]+ = ") then row = r - 1 break end
+    end
+    local col = vim.api.nvim_buf_get_lines(0, row, row + 1, false)[1]:find(" = ") - 1
+    vim.api.nvim_win_set_cursor(0, { row + 1, 0 }) vim.cmd("normal! zz")
+    local t = vim.uv.hrtime()
+    for _ = 1, 200 do
+      vim.api.nvim_buf_set_text(0, row, col, row, col, { "x" }) col = col + 1
+      vim.cmd("redraw")
+    end
+    local per = (vim.uv.hrtime() - t) / 1e6 / 200
+    vim.cmd("silent! undo 0")
+    return per
+  ]]
+  lua(scroll) lua(typing) -- warm
+  local on = { scroll = lua(scroll), typing = lua(typing) }
+  lua("vim.api.nvim_set_decoration_provider(vim.api.nvim_create_namespace('colorrex.chunks'), {})")
+  local off = { scroll = lua(scroll), typing = lua(typing) }
+  print(("info  per frame with meanings / without: scroll %.2f / %.2f ms, typing %.2f / %.2f ms"):format(
+    on.scroll, off.scroll, on.typing, off.typing))
+  for _, kind in ipairs({ "scroll", "typing" }) do
+    check(("speed: meanings cost a %s nothing a person could feel"):format(kind),
+      on[kind] <= off[kind] * 1.5 + 0.3, vim.inspect({ on = on[kind], off = off[kind] }))
+  end
+  pcall(vim.rpcrequest, channel, "nvim_command", "qa!")
+  os.remove(listen)
+end
+
 local function all()
   suite()
   tmux_suite()
   picker_suite()
+  speed_suite()
 end
 
 local ok, err = xpcall(all, debug.traceback)
