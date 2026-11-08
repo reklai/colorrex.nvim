@@ -34,6 +34,10 @@ return function(define)
   G.OilFile = { fg = "fg" }
   G.MiniIndentscopeSymbol = { fg = "border_strong", nocombine = true }
   G.MiniIndentscopeSymbolOff = { fg = "border_strong", nocombine = true }
+  -- mini.jump2d draws its labels over code in fixed white on black, whatever the theme.
+  G.MiniJump2dSpot = { fg = "on_accent", bg = "accent", bold = true, nocombine = true }
+  G.MiniJump2dSpotUnique = { fg = "on_warn", bg = "warn", bold = true, nocombine = true }
+  G.MiniJump2dSpotAhead = { fg = "fg", bg = "element", nocombine = true }
   G.FidgetTitle = { fg = "accent" }
   G.FidgetTask = { fg = "comment" }
   G.MasonHeader = { fg = "on_accent", bg = "accent", bold = true }
