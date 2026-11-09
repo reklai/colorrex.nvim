@@ -17,7 +17,11 @@ return function(define)
   for capture, name in pairs(Meanings.CAPTURES) do
     G[capture] = meaning(name)
   end
-  G.ColorRexFailure = meaning("failure") -- what the lexicon adds, drawn by the host
+  -- What the lexicon adds, drawn by the host. Negation wears control's color, and
+  -- bold, because it is the one character on the line that turns the condition around.
+  G.ColorRexFailure = meaning(Meanings.ADDED.failure)
+  G.ColorRexNegation = meaning(Meanings.ADDED.negation)
+  G.ColorRexNegation.bold = true
 
   G["@constant.macro"] = { fg = "preproc" }
   G["@string.documentation"] = { fg = "comment" }

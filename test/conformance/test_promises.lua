@@ -321,6 +321,27 @@ T.test("practical: types and numbers do not share a hue", function()
   T.ok(twins <= TWIN_LIMIT, ("%d themes"):format(twins))
 end)
 
+T.test("practical: in a diff, the changed words stand clearly above the changed line", function()
+  local Color = require("colorrex.color")
+  local themes = corpus()
+  if next(themes) == nil then
+    T.skip("no theme corpus at " .. CORPUS)
+  end
+  local STEP, LIMIT = 1.25, { dark = 1, light = 3 } -- lowered by hand; from 32 and 105
+  local flat = { dark = 0, light = 0 }
+  for _, theme in pairs(themes) do
+    local colorscheme = Compiler.compile(theme, OPTS)
+    local roles = colorscheme.roles
+    if Color.contrast(roles.diff_text.hex, roles.diff_change.hex) < STEP - 0.01 then
+      flat[colorscheme.background] = flat[colorscheme.background] + 1
+    end
+  end
+  for _, side in ipairs({ "dark", "light" }) do
+    print(("  %s themes whose changed words barely stand out: %d"):format(side, flat[side]))
+    T.ok(flat[side] <= LIMIT[side], ("%s: %d themes"):format(side, flat[side]))
+  end
+end)
+
 local FAMILIES = {
   { "Everforest Dark Hard", "Everforest Dark Med" }, { "Everforest Dark Med", "Everforest Dark Soft" },
   { "Gruvbox Dark", "Gruvbox Dark Hard" }, { "Kanso Ink", "Kanso Zen" }, { "Noctis", "Noctis Obscuro" },

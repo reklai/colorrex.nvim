@@ -185,7 +185,7 @@ highlights query gets its meanings from the capture names grammars share, so a n
 language is covered the day it ships one, as far as its query uses those names. On
 top of that, a short list of words that mean the same thing across languages, such as
 `nil`, `None`, `Nothing`, `err` and `panic`, reads as failure wherever a grammar marks
-it as a name, a constant, a type, a keyword or a call. It names words and never grammar
+it as a name, a constant, a type, a keyword or a call. It names words, not grammar
 nodes, so there is no query to break when a grammar changes; a word a grammar stops
 capturing simply reads by its capture.
 

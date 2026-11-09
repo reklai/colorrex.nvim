@@ -1,21 +1,27 @@
 -- Plugins, only where their own defaults would not already follow the other groups.
 -- None of these is a dependency: a group nobody uses is inert.
 return function(define)
-  local base, link, syn = define.base, define.link, define.syn
+  local base, link, syn, each = define.base, define.link, define.syn, define.each
   local G = {}
 
   G.TelescopeNormal = { fg = "fg", bg = base }
   G.TelescopeBorder = { fg = "border_strong", bg = base }
   G.TelescopeTitle = { fg = "accent", bold = true }
-  G.TelescopeSelection = { bg = "visual" }
+  -- A picker's chosen row is the item Enter acts on, as in the completion menu.
+  G.TelescopeSelection = { bg = "accent_soft", bold = true }
+  G.TelescopeSelectionCaret = { fg = "select_accent", bg = "accent_soft", bold = true }
   G.TelescopeMatching = { fg = "select_accent", bold = true }
   G.TelescopePromptPrefix = { fg = "accent" }
   G.BlinkCmpMenu = link("Pmenu")
   G.BlinkCmpMenuBorder = link("FloatBorder")
-  G.BlinkCmpMenuSelection = { bg = "visual" }
+  G.BlinkCmpMenuSelection = { bg = "accent_soft", bold = true }
   G.BlinkCmpLabelMatch = { fg = "select_accent", bold = true }
   G.BlinkCmpLabelDeprecated = { strikethrough = true }
   G.BlinkCmpKind = { fg = "muted" }
+  -- Ghost text: a suggestion, not code and not a comment (see ComplHint).
+  G.BlinkCmpGhostText = link("ComplHint")
+  G.CopilotSuggestion = link("ComplHint")
+  G.CopilotAnnotation = link("ComplHintMore")
   G.BlinkCmpDoc = link("NormalFloat")
   G.BlinkCmpDocBorder = link("FloatBorder")
   G.BlinkCmpSignatureHelp = link("NormalFloat")
@@ -63,6 +69,9 @@ return function(define)
   G.GitSignsAdd = { fg = "ok" }
   G.GitSignsChange = { fg = "warn" }
   G.GitSignsDelete = { fg = "error" }
+  -- The changed words in a hunk preview. gitsigns falls back to TermCursor for these,
+  -- which is drawn in reverse, so a preview showed inverted blocks.
+  each(G, { "GitSignsAddInline", "GitSignsChangeInline", "GitSignsDeleteInline" }, link("DiffText"))
 
   return G
 end

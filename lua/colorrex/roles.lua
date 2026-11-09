@@ -88,8 +88,13 @@ local SURFACES = {
   { name = "diff_add", over = "ok", mix = 0.16, least = 1.1 },
   { name = "diff_delete", over = "error", mix = 0.16 },
   { name = "diff_change", over = "warn", mix = 0.14, least = 1.1 },
-  { name = "diff_text", over = "warn", mix = 0.30 },
+  -- The changed words must stand clearly above their changed line, or a diff shows
+  -- only that a line changed. Light themes mostly start too close, so this one firms
+  -- up, as far as `most`, until it is `step` above the surface it sits on.
+  { name = "diff_text", over = "warn", mix = 0.30, above = "diff_change", step = 1.25, most = 0.7 },
   { name = "accent_soft", over = "accent", mix = 0.18, least = 1.2 },
+  -- Where a debugger stopped the program: in progress, so info, as a running test is.
+  { name = "stopped", over = "info", mix = 0.16, least = 1.1 },
 }
 
 -- How readable text must stay on those surfaces. Lower than `contrast`, which is
@@ -99,9 +104,10 @@ local SURFACES = {
 M.ON_SURFACE = { text = 2.5, comment = 2.25 }
 
 local EASE_STEP = 0.01
+local FIRM_STEP = 0.02
 
 local MUTED_ON = { "cursorline", "element" } -- the surfaces quiet text is used on
-local SELECT_ON = { "visual", "element", "base" } -- the surfaces a picker's matches are on
+local SELECT_ON = { "accent_soft", "element", "base" } -- the surfaces a picker's matches are on
 
 -- Roles used as text on a float, which sits on `element` and not on the background
 -- they were made readable against. Each gets a `float_` role, lifted to suit.
@@ -494,6 +500,21 @@ local function eased_mix(surface, over, bg, text)
   return mix
 end
 
+--- A surface that sets its own text, firmed until it stands `step` above the one it
+--- sits on, while fg or bg still reads on it as well as the floor asks.
+local function firmed_mix(surface, over, bg, fg, under, floor)
+  local need = math.min(floor, Color.contrast(fg, bg))
+  local mix = surface.mix
+  while Color.contrast(Color.mix(bg, over, mix), under) < surface.step and mix + FIRM_STEP <= surface.most do
+    local next_hex = Color.mix(bg, over, mix + FIRM_STEP)
+    if math.max(Color.contrast(fg, next_hex), Color.contrast(bg, next_hex)) < need then
+      break
+    end
+    mix = mix + FIRM_STEP
+  end
+  return mix
+end
+
 -- How far below the code a comment sits, as a share of the code's median contrast. Dark
 -- themes leave their comments near here on their own; many light ones do not, because
 -- a strong grey on white reads louder than colors that had to darken to be read.
@@ -577,6 +598,15 @@ local function landmark_role(theme, roles)
   return { hex = roles.func.hex, source = "function" }
 end
 
+--- Text a completion suggests, which is not in the file: the accent, no louder than a
+--- comment, so a suggestion never outshouts the code it would join. It keeps its hue,
+--- so it never reads as a comment either.
+local function predicted_role(roles, bg)
+  local accent = roles.accent.hex
+  local hex = Color.quiet(accent, bg, Color.contrast(roles.comment.hex, bg))
+  return { hex = hex, source = "accent, as quiet as a comment", from = hex ~= accent and accent or nil }
+end
+
 --- Solve a filled theme.
 ---   roles[name] = { hex, source, from? }; styles[syntax role] = { bold?, ... }
 function M.solve(theme, opts)
@@ -622,6 +652,7 @@ function M.solve(theme, opts)
   roles.accent = accent_role(theme, roles, floor, notes)
   note_lift(notes, "accent", roles.accent, bg)
   roles.landmark = landmark_role(theme, roles)
+  roles.predicted = predicted_role(roles, bg)
 
   for _, role in ipairs(M.PALETTE) do
     roles[role.name] = from_slot(theme, natural_slot(theme, role.slots), floor)
@@ -632,6 +663,9 @@ function M.solve(theme, opts)
   for _, surface in ipairs(SURFACES) do
     local over = roles[surface.over].hex
     local mix = surface.least and eased_mix(surface, over, bg, surface_text) or surface.mix
+    if surface.above then
+      mix = firmed_mix(surface, over, bg, fg, roles[surface.above].hex, floor)
+    end
     roles[surface.name] = {
       hex = Color.mix(bg, over, mix),
       source = ("%s over bg at %d%%"):format(surface.over, math.floor(mix * 100 + 0.5)),
@@ -640,11 +674,17 @@ function M.solve(theme, opts)
       least = surface.least,
       holds = surface.holds,
     }
-    if mix ~= surface.mix then
+    if mix < surface.mix then
       notes[#notes + 1] = {
         code = "faithful.surface",
         message = ("%s eased from %d%% to %d%% so the text on it stays readable"):format(
           surface.name, math.floor(surface.mix * 100 + 0.5), math.floor(mix * 100 + 0.5)),
+      }
+    elseif mix > surface.mix then
+      notes[#notes + 1] = {
+        code = "practical.surface",
+        message = ("%s firmed from %d%% to %d%% to stand above %s"):format(
+          surface.name, math.floor(surface.mix * 100 + 0.5), math.floor(mix * 100 + 0.5), surface.above),
       }
     end
   end
