@@ -48,10 +48,7 @@ fields get a color of their own, off the hues of keywords, functions and types, 
 Keywords, functions, strings, types, failure and operators can always be told apart,
 by color where the palette allows and by weight, slant or underline where it does not.
 `=` and `self` can be read on sight and appear on nearly every line, so they stay
-quiet. The item Enter will pick looks the same in every list (completion, pickers,
-quickfix, the wildmenu) and unlike a text selection. A completion's ghost text is a
-quiet accent, so a suggestion never reads as commented-out code. In a diff, the changed
-words stand clearly above their line, in light themes too.
+quiet.
 
 Tree-sitter is used for highlighting; see [Languages](#languages). Numbers,
 booleans and named constants are values, in the string's family: a digit's shape
@@ -191,13 +188,6 @@ top of that, a short list of words that mean the same thing across languages, su
 it as a name, a constant, a type, a keyword or a call. It names words, not grammar
 nodes, so there is no query to break when a grammar changes; a word a grammar stops
 capturing simply reads by its capture.
-
-Negation is on the list too: `!`, `not` and `unless` take the keyword color, in bold,
-where grammars left them the quietest color on the line. `!` is the one entry that
-looks at a grammar node, because it only negates as a prefix: TypeScript's `foo!` and
-Rust's `panic!` and `-> !` are left alone. Zig's parser reads `!ok` as an error union,
-so Zig's `!` stays quiet. A grammar that renames its prefix node loses only this, and
-the test against real grammars catches it.
 
 Each of these has a short sample, checked against its real grammar: C, C++, C#,
 Elixir, Erlang, Gleam, Go, Haskell, Java, JavaScript, Kotlin, Lua, Odin, PHP, Python,

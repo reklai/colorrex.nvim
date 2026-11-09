@@ -117,20 +117,23 @@ M.LEXICON = {
   -- at a glance. `not` and `unless` only ever negate. `!` negates only as a prefix: a
   -- grammar also uses it for TypeScript's `foo!`, Rust's `panic!` and `-> !`, and
   -- Zig's `!T`, under other nodes. Zig's parser files `!ok` as an error union too, so
-  -- Zig's `!` is left alone.
+  -- Zig's `!` is left alone. Erlang's `not` and Gleam's `!` are never captured by
+  -- their queries, so there is nothing to read.
   { kinds = { "operator", "keyword.operator" }, words = { "not" }, meaning = "negation" },
-  { kinds = { "keyword.conditional" }, words = { "unless" }, meaning = "negation" },
+  { kinds = { "function" }, words = { "not" }, langs = { haskell = true }, meaning = "negation" }, -- a Prelude function
+  { kinds = { "keyword.conditional", "keyword" }, words = { "unless" }, meaning = "negation" }, -- Elixir's is a keyword
   {
     kinds = { "operator" },
     words = { "!" },
     meaning = "negation",
     parents = {
-      "unary_expression", -- C, C++, Go, Rust, JavaScript, TypeScript, Java, Lua
+      "unary_expression", -- C, C++, Go, Rust, JavaScript, TypeScript, Java, Odin, Bash's `[ ! -f ]`
       "unary", -- Ruby
       "unary_operator", -- Elixir
       "prefix_expression", -- Kotlin, Swift
       "prefix_unary_expression", -- C#
       "unary_op_expression", -- PHP
+      "negated_command", -- Bash's `! cmd`
     },
   },
 }

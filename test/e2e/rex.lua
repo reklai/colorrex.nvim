@@ -329,6 +329,29 @@ local function suite()
   local negation = style_before(reader, "not")
   check("meanings: and `not` is negation, in control's color and bold",
     draws(negation, state.negation) and bold(negation), vim.inspect({ negation, state.negation }))
+  -- `!` depends on its grammar node, so it is checked on real grammars, where installed:
+  -- a prefix negates, TypeScript's non-null assertion does not.
+  if pcall(vim.treesitter.language.add, "typescript") then
+    -- `!` and the word after it differ in style, so the terminal writes codes between
+    -- them: each file holds one `!`, looked up on its own.
+    local function first_bang(name, code)
+      local path = work .. "/" .. name
+      file = assert(io.open(path, "w"))
+      file:write(code)
+      file:close()
+      send(reader, (":edit %s\r:lua vim.treesitter.start()\r"):format(path))
+      wait(600)
+      return style_before(reader, "!")
+    end
+    local prefix = first_bang("prefix.ts", "if (ready && !started) {\n  start();\n}\n")
+    local assertion = first_bang("assertion.ts", "const port = config!.port;\n")
+    check("meanings: a prefix `!` is negation on a real grammar",
+      draws(prefix, state.negation) and bold(prefix), vim.inspect({ prefix, state.negation }))
+    check("meanings: and TypeScript's `config!` is not",
+      assertion ~= nil and not bold(assertion), vim.inspect(assertion))
+  else
+    print("skip  meanings: no typescript parser, so `!` is not checked on screen")
+  end
   send(reader, "\027:qa!\r")
   wait(300)
 
