@@ -111,18 +111,52 @@ M.LEXICON = {
     },
   },
   { kinds = { "operator" }, words = { "?" }, langs = { rust = true } }, -- Rust's error propagation
+
+  -- Negation: the one character that turns a condition around. Grammars file `!` and
+  -- `not` with `+` and `,`, the quietest text on the line, so `if !ok` read as `if ok`
+  -- at a glance. `not` and `unless` only ever negate. `!` negates only as a prefix: a
+  -- grammar also uses it for TypeScript's `foo!`, Rust's `panic!` and `-> !`, and
+  -- Zig's `!T`, under other nodes. Zig's parser files `!ok` as an error union too, so
+  -- Zig's `!` is left alone.
+  { kinds = { "operator", "keyword.operator" }, words = { "not" }, meaning = "negation" },
+  { kinds = { "keyword.conditional" }, words = { "unless" }, meaning = "negation" },
+  {
+    kinds = { "operator" },
+    words = { "!" },
+    meaning = "negation",
+    parents = {
+      "unary_expression", -- C, C++, Go, Rust, JavaScript, TypeScript, Java, Lua
+      "unary", -- Ruby
+      "unary_operator", -- Elixir
+      "prefix_expression", -- Kotlin, Swift
+      "prefix_unary_expression", -- C#
+      "unary_op_expression", -- PHP
+    },
+  },
 }
 
--- Index: kind -> { words = set, patterns = list, langs = set|nil } entries.
+-- What the lexicon can add, and the meaning each is drawn as. Negation is control,
+-- made louder: it decides which way the flow goes, like the `if` it sits in.
+M.ADDED = { failure = "failure", negation = "control" }
+
+local function set(list)
+  local out = {}
+  for _, item in ipairs(list or {}) do
+    out[item] = true
+  end
+  return out
+end
+
+-- Index: kind -> { words = set, patterns = list, langs = set|nil, meaning, parents = set|nil } entries.
 local BY_KIND = {}
 for _, entry in ipairs(M.LEXICON) do
-  local words = {}
-  for _, word in ipairs(entry.words) do
-    words[word] = true
-  end
+  local words = set(entry.words)
   for _, kind in ipairs(entry.kinds) do
     BY_KIND[kind] = BY_KIND[kind] or {}
-    table.insert(BY_KIND[kind], { words = words, patterns = entry.patterns or {}, langs = entry.langs })
+    table.insert(BY_KIND[kind], {
+      words = words, patterns = entry.patterns or {}, langs = entry.langs,
+      meaning = entry.meaning or "failure", parents = entry.parents and set(entry.parents),
+    })
   end
 end
 
@@ -139,10 +173,12 @@ end
 
 local MAX_WORD = 40 -- no word in the lexicon is longer; nothing longer is looked at
 
---- The meaning the lexicon gives `text` in this capture, or nil when it has nothing
---- to add to the capture's own. Only failure is ever added: that is the meaning no
---- grammar marks on its own.
-function M.refine(capture, text, lang)
+--- What the lexicon adds to `text` in this capture: "failure" or "negation" (see
+--- ADDED), or nil when it has nothing to add to the capture's own. These are the
+--- meanings no grammar marks on its own. `parent`, when given, returns the type of
+--- the node's parent; it is only called for a word whose meaning depends on it, and a
+--- word like that is left alone without it.
+function M.refine(capture, text, lang, parent)
   if #text > MAX_WORD then
     return nil
   end
@@ -151,11 +187,14 @@ function M.refine(capture, text, lang)
     for _, entry in ipairs(BY_KIND[kind] or {}) do
       if not entry.langs or entry.langs[lang] then
         if entry.words[word] then
-          return "failure"
-        end
-        for _, pattern in ipairs(entry.patterns) do
-          if word:find(pattern) then
-            return "failure"
+          if not entry.parents or (parent and entry.parents[parent()]) then
+            return entry.meaning
+          end
+        else
+          for _, pattern in ipairs(entry.patterns) do
+            if word:find(pattern) then
+              return entry.meaning
+            end
           end
         end
       end

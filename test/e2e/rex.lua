@@ -326,6 +326,9 @@ local function suite()
   check("meanings: and a number is a value, not failure",
     draws(style_before(reader, "40961"), state.value) and state.value ~= state.failure,
     vim.inspect({ style_before(reader, "40961"), state.value }))
+  local negation = style_before(reader, "not")
+  check("meanings: and `not` is negation, in control's color and bold",
+    draws(negation, state.negation) and bold(negation), vim.inspect({ negation, state.negation }))
   send(reader, "\027:qa!\r")
   wait(300)
 

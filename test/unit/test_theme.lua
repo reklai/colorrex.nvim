@@ -444,3 +444,51 @@ T.test("light: a loud grey comment eases below the code, keeping its hue", funct
   T.eq(roles.comment.from, "#4f525e")
   T.ok(Color.hue_gap(roles.comment.hex, "#4f525e") < 12 or Color.chroma("#4f525e") < 0.03, "the same grey, only lighter")
 end)
+
+T.test("chosen: every list marks the item Enter acts on the same way, apart from a selection", function()
+  local colorscheme = Compiler.compile(F.theme(), Config.resolve())
+  local G, chosen = colorscheme.groups, colorscheme.roles.accent_soft.hex
+  for _, name in ipairs({ "PmenuSel", "TelescopeSelection", "BlinkCmpMenuSelection", "QuickFixLine", "WildMenu" }) do
+    T.eq(G[name].bg, chosen, name)
+    T.ok(G[name].bold, name .. " is bold")
+  end
+  T.ok(G.Visual.bg ~= chosen, "a text selection keeps its own surface")
+  T.ok(G.CursorLine.bg ~= chosen, "the cursor line keeps its own surface")
+  T.eq(G.PmenuMatchSel.fg, colorscheme.roles.select_accent.hex)
+end)
+
+T.test("debugger: the stopped line shows, and is not the cursor line", function()
+  local colorscheme = Compiler.compile(F.theme(), Config.resolve())
+  local G = colorscheme.groups
+  T.eq(G.debugPC.bg, colorscheme.roles.stopped.hex)
+  T.ok(G.debugPC.bg ~= G.CursorLine.bg and G.debugPC.bg ~= G.Visual.bg)
+end)
+
+T.test("gitsigns: a hunk preview's changed words wear the diff's, not reverse video", function()
+  local specs = Compiler.compile(F.theme(), Config.resolve()).group_specs
+  for _, name in ipairs({ "GitSignsAddInline", "GitSignsChangeInline", "GitSignsDeleteInline" }) do
+    T.eq(specs[name].link, "DiffText", name)
+  end
+end)
+
+T.test("suggestions: text that is not in the file is neither code nor a comment", function()
+  local Color = require("colorrex.color")
+  for _, theme in ipairs({ F.theme(), F.theme({ cursor = false }) }) do
+    local colorscheme = Compiler.compile(theme, Config.resolve())
+    local G, roles, bg = colorscheme.groups, colorscheme.roles, colorscheme.filled.bg
+    T.eq(G.ComplHint.fg, roles.predicted.hex)
+    T.ok(G.ComplHint.italic)
+    T.ok(G.ComplHint.fg ~= G.Comment.fg, "a suggestion looks like a comment")
+    T.ok(Color.contrast(roles.predicted.hex, bg) <= Color.contrast(roles.comment.hex, bg) + 0.01,
+      "a suggestion is louder than a comment")
+    T.eq(colorscheme.group_specs.BlinkCmpGhostText.link, "ComplHint")
+    T.eq(G.PreInsert.fg, nil, "provisional text lost its own colors")
+    T.ok(G.PreInsert.underdotted)
+  end
+end)
+
+T.test("negation: wears control's color, in bold", function()
+  local G = Compiler.compile(F.theme(), Config.resolve()).groups
+  T.eq(G.ColorRexNegation.fg, G["@keyword"].fg)
+  T.ok(G.ColorRexNegation.bold)
+end)

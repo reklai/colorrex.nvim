@@ -30,9 +30,10 @@ for the rest.
 Any language with a Tree-sitter highlights query is covered by the capture
 names grammars share. A short list of words that mean the same thing across
 languages adds failure where a grammar marks one as a name, a constant, a type
-or a call. Tested against the grammars of C, C++, C#, Elixir, Erlang, Gleam,
-Go, Haskell, Java, JavaScript, Kotlin, Lua, Odin, PHP, Python, Ruby, Rust,
-Swift, TSX, TypeScript and Zig.
+or a call. Negation is on it too: `!` as a prefix, `not` and `unless` take the
+keyword color in bold. Tested against the grammars of C, C++, C#, Elixir,
+Erlang, Gleam, Go, Haskell, Java, JavaScript, Kotlin, Lua, Odin, PHP, Python,
+Ruby, Rust, Swift, TSX, TypeScript and Zig.
 
 TMUX AND HERDR                                                 *colorrex-tmux*
 

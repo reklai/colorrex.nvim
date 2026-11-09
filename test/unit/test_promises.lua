@@ -484,12 +484,12 @@ local function light_cursor_near_floor()
   return Compiler.compile(F.theme({ fg = "#4d3a33", bg = "#fdf3ec", cursor = "#e07a4f", ansi = ansi }), OPTS)
 end
 
-T.test("surface: a picker's matched letters read on its selection and off it", function()
-  -- Telescope draws the selection under the matches; they set no background.
+T.test("surface: a picker's matched letters read on its chosen row and off it", function()
+  -- Telescope draws the chosen row under the matches; they set no background.
   for label, colorscheme in pairs({ light = light_cursor_near_floor(), dark = faint_comments() }) do
     local roles = colorscheme.roles
     for _, name in ipairs({ "TelescopeMatching", "BlinkCmpLabelMatch" }) do
-      for _, surface in ipairs({ "visual", "element", "base" }) do
+      for _, surface in ipairs({ "accent_soft", "element", "base" }) do
         local ratio = Color.contrast(colorscheme.groups[name].fg, roles[surface].hex)
         T.ok(ratio >= 3 - 0.01, ("%s %s on %s is %.2f:1"):format(label, name, surface, ratio))
       end
@@ -497,10 +497,10 @@ T.test("surface: a picker's matched letters read on its selection and off it", f
   end
 end)
 
-T.test("promises: matched letters too faint on the selection are caught", function()
+T.test("promises: matched letters too faint on the chosen row are caught", function()
   local colorscheme = light_cursor_near_floor()
-  local accent, visual = colorscheme.roles.accent.hex, colorscheme.roles.visual.hex
-  T.ok(Color.contrast(accent, visual) < 3, "the accent reads on the selection, so this proves nothing")
+  local accent, chosen = colorscheme.roles.accent.hex, colorscheme.roles.accent_soft.hex
+  T.ok(Color.contrast(accent, chosen) < 3, "the accent reads on the chosen row, so this proves nothing")
   colorscheme.groups.TelescopeMatching.fg = accent
   T.ok(codes(colorscheme)["faithful.surface"])
 end)

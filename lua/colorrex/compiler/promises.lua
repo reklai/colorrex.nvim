@@ -19,8 +19,8 @@ local ROUNDING = 0.01 -- bisection lands on 8-bit colors, a hair under an exact 
 -- Lines, not text. They are meant to recede, and nobody reads them.
 local DECORATION, DECORATION_ALT = "Border$", "Separator$"
 
--- Groups with no background of their own, drawn on a list and on its selection as
--- the selection moves: a picker's matched letters. The surface the list sits on.
+-- Groups with no background of their own, drawn on a list and on its chosen row as
+-- the choice moves: a picker's matched letters. The surface the list sits on.
 local OVER_SELECTION = { TelescopeMatching = "base", BlinkCmpLabelMatch = "element" }
 
 -- A group that sets a fill and no text lies under whatever text is there, which is
@@ -166,7 +166,7 @@ function M.check(colorscheme, opts)
 
   for name, under in pairs(OVER_SELECTION) do
     local group = colorscheme.groups[name]
-    for _, surface in ipairs({ under, "visual" }) do
+    for _, surface in ipairs({ under, "accent_soft" }) do
       if group and group.fg and too_faint(group.fg, roles[surface].hex) then
         fail("faithful.surface", ("%s is %.2f:1 on %s"):format(name, Color.contrast(group.fg, roles[surface].hex), surface))
       end

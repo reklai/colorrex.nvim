@@ -23,7 +23,8 @@ for _, path in ipairs(files) do
     for _, word in ipairs(words) do
       local capture = word.capture and ("@" .. word.capture) or "-"
       local bare = word.text:gsub("^:+(%a)", "%1"):gsub(":$", "")
-      local failure = capture ~= "-" and (Meanings.refine(capture, word.text, lang) or Meanings.refine(capture, bare, lang))
+      local added = capture ~= "-" and (Meanings.refine(capture, word.text, lang) or Meanings.refine(capture, bare, lang))
+      local failure = added == "failure"
       rows[word.row + 1] = rows[word.row + 1] or {}
       table.insert(rows[word.row + 1], ("{ %q, %q%s }"):format(word.text, capture, failure and ", true" or ""))
     end

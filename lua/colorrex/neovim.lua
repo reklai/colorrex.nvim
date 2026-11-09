@@ -7,7 +7,7 @@ local M = {}
 
 local LANDMARK_GROUP = "ColorRexLandmark"
 local LANDMARK_PRIORITY = 130 -- above Treesitter and LSP tokens, below diagnostics
-local MEANING_GROUP = "ColorRexFailure"
+local MEANING_GROUPS = { failure = "ColorRexFailure", negation = "ColorRexNegation" } -- what the lexicon adds
 local MEANING_PRIORITY = 126 -- above Treesitter (100) and LSP tokens (125), so `err` stays failure
 local MAX_WORD = 40 -- the lexicon never reads anything longer
 
@@ -140,13 +140,13 @@ function M.new()
   end
 
   --- Draw what the highlighter cannot: chunk landmarks, when asked for, and the
-  --- meanings the lexicon adds, such as `nil` and `err` reading as failure. Marks are
-  --- ephemeral, so nothing is stored in a buffer, and only the rows on screen are looked
-  --- at. A buffer without Treesitter highlighting is left alone, and nothing here ever
-  --- starts a parse: it reads the trees the highlighter already has.
+  --- meanings the lexicon adds, such as `nil` and `err` reading as failure and `!` as
+  --- negation. Marks are ephemeral, so nothing is stored in a buffer, and only the rows
+  --- on screen are looked at. A buffer without Treesitter highlighting is left alone,
+  --- and nothing here ever starts a parse: it reads the trees the highlighter already has.
   ---
   --- spec: landmarks(root, top, bottom, line) -> marks, or nil;
-  ---       refine(capture, text, lang) -> meaning|nil; can_refine(capture) -> boolean.
+  ---       refine(capture, text, lang, parent) -> meaning|nil; can_refine(capture) -> boolean.
   function host.decorate(spec)
     generation = generation + 1
     local mine = generation
@@ -167,14 +167,23 @@ function M.new()
     end
 
     local broken = {} -- languages whose query failed here once; they lose only this
+    -- The lexicon asks for a node's parent only for the few words that need it, such
+    -- as `!`. One function, pointed at the node being read, so asking costs nothing.
+    local reading
+    local function parent_type()
+      local parent = reading:parent()
+      return parent and parent:type()
+    end
     local function refine_row(tstree, query, lang, buffer, row, found)
       for id, node in query:iter_captures(tstree:root(), buffer, row, row + 1) do
         local capture = "@" .. query.captures[id]
         if spec.can_refine(capture) then
           local start_row, start_col, end_row, end_col = node:range()
           if start_row == row and end_row == row and end_col - start_col <= MAX_WORD then
-            if spec.refine(capture, vim.treesitter.get_node_text(node, buffer), lang) then
-              found[#found + 1] = { start_col, end_row, end_col, MEANING_GROUP, MEANING_PRIORITY }
+            reading = node
+            local group = MEANING_GROUPS[spec.refine(capture, vim.treesitter.get_node_text(node, buffer), lang, parent_type)]
+            if group then
+              found[#found + 1] = { start_col, end_row, end_col, group, MEANING_PRIORITY }
             end
           end
         end

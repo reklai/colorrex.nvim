@@ -118,3 +118,50 @@ T.test("meanings: every language here reads failure in one color", function()
   T.eq(compiled.groups["@keyword.exception"].fg, failure)
   T.eq(compiled.groups.Exception.fg, failure)
 end)
+
+-- Negation, on real grammars: the word list names `!`'s parent node, so a grammar
+-- that renames it would quietly lose it. Each case is code, and what each `!` or
+-- `not` in it should come out as, in order.
+local NEGATION = {
+  go = { "package m\nfunc f() { if !ok && x != 1 { } }", { "negation" } },
+  c = { "int f(void) { if (!ok) return !x; return a != b; }", { "negation", "negation" } },
+  javascript = { "if (!ok) { x = !y; }", { "negation", "negation" } },
+  typescript = { "if (!ok) { const z = foo!.bar; }", { "negation", false } },
+  rust = { "fn f() -> ! { if !items.is_empty() { panic!(\"x\"); } }", { false, "negation", false } },
+  zig = { "fn f() !void { if (!ok) return; }", { false, false } },
+  lua = { "if not ok then return end", { "negation" } },
+  python = { "if not ready and x is not None:\n  pass", { "negation", "negation" } },
+}
+
+for lang, case in pairs(NEGATION) do
+  T.test("meanings: " .. lang .. " reads `!` and `not` as negation only where they negate", function()
+    local ok, query = pcall(vim.treesitter.query.get, lang, "highlights")
+    if not ok or not query or not pcall(vim.treesitter.language.add, lang) then
+      T.skip("no " .. lang .. " parser and highlights query here")
+    end
+    local text, want = case[1], case[2]
+    local tree = vim.treesitter.get_string_parser(text, lang):parse()[1]
+    -- One verdict per token, as the host draws it: any capture of it that refines wins.
+    local found, order = {}, {}
+    for id, node in query:iter_captures(tree:root(), text, 0, -1) do
+      local word = vim.treesitter.get_node_text(node, text)
+      if word == "!" or word == "not" then
+        local key = table.concat({ node:range() }, ":")
+        if found[key] == nil then
+          order[#order + 1] = { key = key, at = select(2, node:start()) + select(1, node:start()) * 1000 }
+          found[key] = false
+        end
+        local meaning = Meanings.refine("@" .. query.captures[id], word, lang, function()
+          return node:parent() and node:parent():type()
+        end)
+        found[key] = found[key] or meaning or false
+      end
+    end
+    table.sort(order, function(a, b) return a.at < b.at end)
+    local got = {}
+    for index, item in ipairs(order) do
+      got[index] = found[item.key]
+    end
+    T.eq(vim.inspect(got), vim.inspect(want))
+  end)
+end

@@ -23,6 +23,10 @@ return function(define)
   G.CursorLineNr = { fg = "fg", bold = true }
   G.CursorLineFold = { fg = "muted", bg = "cursorline" }
   G.CursorLineSign = { bg = "cursorline" }
+  -- Where a debugger has stopped the program. nvim-dap draws the line with this, which
+  -- only Neovim's termdebug defines, so it showed nothing. The program is here, which
+  -- is not where your cursor is.
+  G.debugPC = { bg = "stopped" }
   G.LineNr = { fg = "comment" }
   G.LineNrAbove = link("LineNr")
   G.LineNrBelow = link("LineNr")
@@ -40,12 +44,15 @@ return function(define)
   G.Title = { fg = "accent", bold = true }
   G.Visual = { bg = "visual" }
   G.VisualNOS = { bg = "visual" }
-  G.QuickFixLine = { bg = "visual", bold = true }
+  -- The item Enter acts on, in every list: completion, pickers, quickfix and the
+  -- wildmenu, in the same accent as a snippet's next stop. A text selection is
+  -- something else, and keeps `visual`; the cursor line only says where you are.
+  G.QuickFixLine = { bg = "accent_soft", bold = true }
   G.Search = { fg = "on_search", bg = "search" }
   G.IncSearch = { fg = "on_accent", bg = "accent" }
   G.CurSearch = { fg = "on_accent", bg = "accent", bold = true }
   G.Substitute = { fg = "on_error", bg = "error" }
-  G.WildMenu = { fg = "on_accent", bg = "accent" }
+  G.WildMenu = { fg = "fg", bg = "accent_soft", bold = true }
 
   -- Messages ------------------------------------------------------------------
   G.MsgArea = { fg = "fg" }
@@ -72,20 +79,26 @@ return function(define)
 
   -- Popup menu ----------------------------------------------------------------
   G.Pmenu = { fg = "fg", bg = "element" }
-  G.PmenuSel = { fg = "on_accent", bg = "accent" }
+  G.PmenuSel = { fg = "fg", bg = "accent_soft", bold = true }
   G.PmenuKind = { fg = "muted", bg = "element" }
-  G.PmenuKindSel = { fg = "on_accent", bg = "accent" }
+  G.PmenuKindSel = { fg = "fg", bg = "accent_soft" }
   G.PmenuExtra = { fg = "muted", bg = "element" }
-  G.PmenuExtraSel = { fg = "on_accent", bg = "accent" }
+  G.PmenuExtraSel = { fg = "fg", bg = "accent_soft" }
   G.PmenuSbar = { bg = "subtle" }
   G.PmenuThumb = { bg = "border_strong" }
   G.PmenuMatch = { fg = "float_accent", bg = "element", bold = true }
-  G.PmenuMatchSel = { fg = "on_accent", bg = "accent", bold = true }
+  G.PmenuMatchSel = { fg = "select_accent", bg = "accent_soft", bold = true }
   G.PmenuBorder = link("FloatBorder")
   G.PmenuShadow = link("FloatShadow")
   G.PmenuShadowThrough = link("FloatShadowThrough")
   G.ComplMatchIns = { fg = "muted" }
-  G.PreInsert = { fg = "comment" }
+  -- Text that is not in the file: a completion's suggestion, drawn ahead of the
+  -- cursor. It is not a comment, so it does not look like one: a quiet accent, slanted.
+  G.ComplHint = { fg = "predicted", italic = true }
+  G.ComplHintMore = { fg = "comment" } -- a note on the suggestion, such as 1/3
+  -- Text a completion put in the file that you have not accepted yet. It is real code,
+  -- so it keeps its own colors, and is marked as not yet yours.
+  G.PreInsert = { sp = "accent", underdotted = true }
   G.SnippetTabstop = { bg = "accent_soft" }
   G.SnippetTabstopActive = { bg = "visual" }
 

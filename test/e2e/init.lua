@@ -39,6 +39,7 @@ vim.api.nvim_create_user_command("E2EDump", function(opts)
     terminal1 = vim.g.terminal_color_1,
     normal_bg = hl("Normal", "bg"),
     failure = hl("ColorRexFailure", "fg"),
+    negation = hl("ColorRexNegation", "fg"),
     value = hl("@number", "fg"),
     route = status.route or vim.NIL,
     borrowed = status.borrowed,
