@@ -50,13 +50,7 @@ by color where the palette allows and by weight, slant or underline where it doe
 `=` and `self` can be read on sight and appear on nearly every line, so they stay
 quiet.
 
-One meaning wears one color, in every language. Everything that can fail or be
-missing shares one color, ANSI red by convention or wherever the theme's voice puts
-`nil`: `nil`, `null`, `None`, `undefined`, `err`, `Err`, error types, `throw`, `raise`,
-`catch`, `rescue`, `panic`, `errdefer`, `orelse`, and Rust's `?`. Nothing else in code
-looks like it: where a palette is too small to give it a color of its own, it differs
-by style. So the eye learns where code can go wrong, in Go, Zig, Rust or TypeScript
-alike. This needs Tree-sitter highlighting; see [Languages](#languages). Numbers,
+Tree-sitter is used for highlighting; see [Languages](#languages). Numbers,
 booleans and named constants are values, in the string's family: a digit's shape
 already says what it is. A diagnostic's severity shows in its underline as well as its
 color, where the terminal draws underline styles, as libghostty does: a curl for an
@@ -86,24 +80,6 @@ with no change, and not at all after a minute with none. Previews show in your c
 as you move through the picker. A change nobody reports shows the next time you
 pause typing: colorrex asks once then, at most every two seconds. Run `:ColorRex` in
 one Neovim and every other Neovim on the machine checks its own terminal too.
-
-### Through tmux and herdr
-
-Neither needs any setup. tmux drops the one-request read unless `allow-passthrough`
-is on, but answers a question per color, which colorrex falls back to by itself.
-tmux never reports the cursor color, so colorrex takes it from the last time this
-machine saw the same sixteen colors whole, and then a theme reads the same inside tmux
-as outside it. If it never has, as on a remote machine, the theme follows the ANSI
-convention there. A herdr pane runs libghostty itself, so from its source it answers
-the same one-request read as the terminal, though it may leave out the cursor color;
-this is not yet tested in a real herdr.
-
-Both pass on dark/light changes at once, and any other change shows when you pause
-typing. Inside Rex, tmux learns a new foreground and background only on a dark/light
-change, so until then it reports the new palette with the last ones it knew.
-`set -g allow-passthrough on` in tmux.conf carries the whole theme, cursor included,
-in one read; it also lets programs inside tmux write to the terminal directly, which
-is why tmux leaves it off. `:ColorRex status` shows which way the colors arrived.
 
 ## Reporting a problem
 
