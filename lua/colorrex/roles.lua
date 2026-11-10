@@ -411,6 +411,34 @@ local function keep_failure_apart(theme, roles, floor, notes)
   return true
 end
 
+--- What comes from elsewhere, imports and macros, is held apart from failure, which
+--- nothing else in code may wear. A voice that gives failure magenta would leave it on
+--- bright magenta beside it. It moves the least it can: to a color apart from every
+--- syntax role if there is one, else apart from failure alone. A palette whose one color
+--- is failure's leaves it the foreground.
+local function keep_boundary_apart(theme, roles, floor, notes)
+  if Color.distance(roles.preproc.hex, roles.failure.hex) >= Color.DISTINCT then
+    return
+  end
+  local best, nearest, clear = nil, math.huge, false
+  for _, slot in ipairs(POOL) do
+    if chromatic(theme, slot) then
+      local option = from_slot(theme, slot, floor)
+      if Color.distance(option.hex, roles.failure.hex) >= Color.DISTINCT then
+        local apart = nearest_other(roles, "preproc", option.hex) >= Color.DISTINCT
+        local move = Color.distance(option.hex, roles.preproc.hex)
+        if (apart and not clear) or (apart == clear and move < nearest) then
+          best, nearest, clear = option, move, apart
+        end
+      end
+    end
+  end
+  local message = best and ("ansi %d read like failure, so imports and macros took ansi %d"):format(
+    roles.preproc.slot or -1, best.slot) or "failure has the only color, so imports and macros read as plain text"
+  notes[#notes + 1] = { code = "practical.reassigned", message = message }
+  roles.preproc = best or { hex = theme.fg, source = "fg" }
+end
+
 --- Give syntax roles the palette could not separate a different weight or slant.
 local function assign_styles(picks, notes, not_plain)
   local styles = { keyword = ITALIC }
@@ -421,7 +449,10 @@ local function assign_styles(picks, notes, not_plain)
         return true
       end
     end
-    return false
+    -- Negation is drawn as a keyword in bold, and failure looks like nothing else.
+    local negation = { bold = true, italic = styles.keyword.italic, underline = styles.keyword.underline }
+    return name == "failure" and M.same_style(negation, style)
+      and Color.distance(picks.keyword.hex, picks.failure.hex) < Color.DISTINCT
   end
   for index = 2, #M.SYNTAX do
     local name = M.SYNTAX[index].name
@@ -532,9 +563,18 @@ local function code_contrast(theme, floor)
   return values[math.ceil(#values / 2)]
 end
 
+--- `hex` in its own hue, eased toward the background until it sits below the code, but
+--- never below the floor comments are held to.
+local function below_code(hex, bg, code, floor)
+  local ceiling = math.max(floor, code * COMMENT_UNDER_CODE)
+  -- Easing lands on 8-bit colors, so it can step a hair past a ceiling that is the
+  -- floor itself. The floor wins.
+  return Color.lift(Color.quiet(hex, bg, ceiling), bg, floor)
+end
+
 --- The comment color: the theme's bright black when it behaves like one, which is to
 --- say quieter than the code it annotates. Louder than that, it keeps its hue and eases
---- toward the background until it is, but never below the floor comments are held to.
+--- toward the background until it is. A comment derived from fg is held to the same.
 local function comment_role(theme, floor_code, notes)
   local fg_contrast = Color.contrast(theme.fg, theme.bg)
   local floor = M.comment_floor(fg_contrast)
@@ -542,10 +582,7 @@ local function comment_role(theme, floor_code, notes)
   local contrast = Color.contrast(source, theme.bg)
   local code = code_contrast(theme, floor_code)
   if contrast >= floor and contrast < fg_contrast and contrast >= code then
-    local ceiling = math.max(floor, code * COMMENT_UNDER_CODE)
-    -- Easing lands on 8-bit colors, so it can step a hair past a ceiling that is the
-    -- floor itself. The floor wins.
-    local hex = Color.lift(Color.quiet(source, theme.bg, ceiling), theme.bg, floor)
+    local hex = below_code(source, theme.bg, code, floor)
     notes[#notes + 1] = {
       code = "faithful.comment",
       message = ("ansi 8 %s is %.1f:1, as loud as the code at %.1f:1; eased to %.1f:1"):format(
@@ -563,10 +600,17 @@ local function comment_role(theme, floor_code, notes)
   if Color.contrast(hex, theme.bg) > fg_contrast then
     hex = theme.fg
   end
+  -- Most themes that land here have a bright black too faint to read, and a blend of
+  -- fg that is louder than half their code.
+  local eased = ""
+  if Color.contrast(hex, theme.bg) >= code then
+    hex = below_code(hex, theme.bg, code, floor)
+    eased = (", eased below the code at %.1f:1"):format(code)
+  end
   notes[#notes + 1] = {
     code = "faithful.comment",
-    message = ("ansi 8 %s is %.1f:1 against normal text at %.1f:1; comment derived from fg"):format(
-      source, contrast, fg_contrast),
+    message = ("ansi 8 %s is %.1f:1 against normal text at %.1f:1; comment derived from fg%s"):format(
+      source, contrast, fg_contrast, eased),
   }
   return { hex = hex, source = "fg over bg" }
 end
@@ -640,6 +684,7 @@ function M.solve(theme, opts)
   roles.number = value_role(theme, roles, floor)
   roles.comment = comment_role(theme, floor, notes)
   local failure_needs_style = keep_failure_apart(theme, roles, floor, notes)
+  keep_boundary_apart(theme, roles, floor, notes)
   local styles = assign_styles(roles, notes, { failure = failure_needs_style })
   styles.number = styles.string
   for _, name in ipairs(Casting.ROLES) do

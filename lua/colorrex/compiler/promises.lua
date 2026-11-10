@@ -86,7 +86,9 @@ function M.check(colorscheme, opts)
     readable(role.name)
   end
   for _, role in ipairs(Roles.SECONDARY) do
-    readable(role.name)
+    if roles[role.name].source ~= "fg" then -- left the foreground when failure has the only color
+      readable(role.name)
+    end
   end
   for _, role in ipairs(Roles.PALETTE) do
     readable(role.name)

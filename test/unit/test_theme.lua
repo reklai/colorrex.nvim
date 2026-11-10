@@ -331,7 +331,6 @@ T.test("property: a field has a color of its own, apart from what is read beside
   T.eq(compiled.groups["@lsp.type.property"].fg, R.property.hex)
   T.ok(R.property.hex ~= R.fg.hex and R.property.hex ~= R.func.hex)
   T.eq(compiled.groups["@variable"].fg, R.fg.hex)
-  T.eq(compiled.groups["@lsp.type.variable"].fg, R.fg.hex)
   T.ok(Color.distance(R.property.hex, R.func.hex) >= Color.DISTINCT)
 end)
 
@@ -386,9 +385,28 @@ end)
 T.test("practical: what shape already says stays quiet", function()
   local compiled = Compiler.compile(F.theme({ cursor = false }), Config.resolve())
   local G, R = compiled.groups, compiled.roles
-  for _, group in ipairs({ "Operator", "@operator", "@lsp.type.operator", "@variable.builtin", "@variable.parameter.builtin" }) do
+  for _, group in ipairs({ "Operator", "@operator", "@keyword.operator", "@variable.builtin", "@variable.parameter.builtin" }) do
     T.eq(G[group].fg, R.muted.hex, group)
   end
+end)
+
+T.test("servers: a token speaks only where a server knows what a grammar cannot", function()
+  local Meanings = require("colorrex.meanings")
+  local compiled = Compiler.compile(F.theme({ cursor = false }), Config.resolve())
+  local G, R = compiled.groups, compiled.roles
+  -- The ones that restate the grammar are empty, and not missing: Neovim would link a
+  -- missing one back to a capture, over the grammar's own reading.
+  for _, token in ipairs(Meanings.SILENT_TOKENS) do
+    T.eq(next(G["@lsp.type." .. token]), nil, token)
+  end
+  for token, name in pairs(Meanings.TOKENS) do
+    T.eq(G["@lsp.type." .. token].fg, R[Meanings.ROLE[name]].hex, token)
+  end
+  -- A parameter is a name with a server or without one.
+  T.eq(G["@lsp.type.parameter"].fg, G["@variable.parameter"].fg)
+  T.eq(G["@variable.parameter"].fg, G["@variable"].fg)
+  -- What a server knows beyond what a word is never changes its color.
+  T.eq(G["@lsp.mod.deprecated"].fg, nil)
 end)
 
 T.test("practical: red means something, so a builtin is what it is", function()
@@ -407,8 +425,28 @@ T.test("practical: words that only color can separate keep it", function()
   T.eq(G["@function.method.call"].fg, R.func.hex)
   T.eq(G["@type"].fg, R.type.hex)
   T.eq(G["@variable"].fg, R.fg.hex)
-  T.eq(G["@tag"].fg, R.special.hex)
   T.eq(G["@string.escape"].fg, R.operator.hex)
+end)
+
+T.test("practical: a tag reads as a kind of element, and never as failure", function()
+  local compiled = Compiler.compile(F.theme({ cursor = false }), Config.resolve())
+  local G, R = compiled.groups, compiled.roles
+  T.eq(G["@tag"].fg, R.type.hex)
+  T.eq(G["@tag.builtin"].fg, R.type.hex)
+  T.eq(G["@tag.attribute"].fg, R.property.hex)
+  T.ok(G["@tag"].fg ~= R.failure.hex)
+end)
+
+T.test("practical: a symbol is a value, and a word operator reads as its symbol", function()
+  local compiled = Compiler.compile(F.theme({ cursor = false }), Config.resolve())
+  local G, R = compiled.groups, compiled.roles
+  T.eq(G["@string.special.symbol"].fg, R.number.hex)
+  T.eq(G["@keyword.operator"].fg, G["@operator"].fg)
+  T.eq(G["@keyword.conditional.ternary"].fg, G["@operator"].fg)
+  -- The color escapes wear is theirs alone among what text holds.
+  for _, capture in ipairs({ "@string.escape", "@string.regexp", "@character.special", "@punctuation.special" }) do
+    T.eq(G[capture].fg, R.operator.hex, capture)
+  end
 end)
 
 T.test("roles: red reaches code, as failure and nothing else", function()
@@ -443,6 +481,26 @@ T.test("light: a loud grey comment eases below the code, keeping its hue", funct
   T.ok(comment >= 2.5 - 0.01, "and still readable")
   T.eq(roles.comment.from, "#4f525e")
   T.ok(Color.hue_gap(roles.comment.hex, "#4f525e") < 12 or Color.chroma("#4f525e") < 0.03, "the same grey, only lighter")
+end)
+
+T.test("dark: a comment derived from fg also sits below the code", function()
+  -- Apple System Colors: bright black is too faint to use, and a blend of white into
+  -- the background came out at 5.3:1, louder than half its code.
+  local Color = require("colorrex.color")
+  local theme = F.theme({ fg = "#ffffff", bg = "#1e1e1e", cursor = false, ansi = {
+    [0] = "#1a1a1a", [1] = "#cc372e", [2] = "#26a439", [3] = "#cdac08", [4] = "#0869cb", [5] = "#9647bf",
+    [6] = "#479ec2", [7] = "#98989d", [8] = "#464646", [9] = "#ff453a", [10] = "#32d74b", [11] = "#ffd60a",
+    [12] = "#0a84ff", [13] = "#bf5af2", [14] = "#76d6ff", [15] = "#ffffff" } })
+  local roles = Compiler.compile(theme, Config.resolve()).roles
+  local code = {}
+  for _, name in ipairs({ "keyword", "func", "string", "type", "failure", "operator" }) do
+    code[#code + 1] = Color.contrast(roles[name].hex, "#1e1e1e")
+  end
+  table.sort(code)
+  local comment = Color.contrast(roles.comment.hex, "#1e1e1e")
+  T.ok(comment < code[3], ("%.2f against code at %.2f"):format(comment, code[3]))
+  T.ok(comment >= 2.5 - 0.01, "and still readable")
+  T.eq(roles.comment.source, "fg over bg")
 end)
 
 T.test("chosen: every list marks the item Enter acts on the same way, apart from a selection", function()
