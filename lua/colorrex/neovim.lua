@@ -7,7 +7,7 @@ local M = {}
 
 local LANDMARK_GROUP = "ColorRexLandmark"
 local LANDMARK_PRIORITY = 130 -- above Treesitter and LSP tokens, below diagnostics
-local MEANING_GROUPS = { failure = "ColorRexFailure", negation = "ColorRexNegation" } -- what the lexicon adds
+local MEANING_GROUPS = { failure = "ColorRexFailure", negation = "ColorRexNegation", key = "ColorRexKey" } -- what the lexicon adds
 local MEANING_PRIORITY = 126 -- above Treesitter (100) and LSP tokens (125), so `err` stays failure
 local MAX_WORD = 40 -- the lexicon never reads anything longer
 

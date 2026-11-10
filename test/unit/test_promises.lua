@@ -506,13 +506,10 @@ T.test("promises: matched letters too faint on the chosen row are caught", funct
 end)
 
 T.test("syntax: a word operator looks the same with or without a parser", function()
+  -- The bundled syntax files link `and`, `new` and `sizeof` to Operator, beside `+`.
   local groups = good().groups
-  for _, name in ipairs({ "typescriptOperator", "javaScriptOperator", "pythonOperator", "luaOperator", "cOperator" }) do
-    T.eq(groups[name].fg, groups["@keyword.operator"].fg, name)
-  end
-  -- Symbols stay quiet, including the Lua ones its syntax file links to the words.
+  T.eq(groups["@keyword.operator"].fg, groups.Operator.fg)
   T.eq(groups.Operator.fg, groups["@operator"].fg)
-  T.eq(groups.luaSymbolOperator.link, "Operator")
 end)
 
 T.test("report: a failed promise is an error, and adjustments are listed", function()

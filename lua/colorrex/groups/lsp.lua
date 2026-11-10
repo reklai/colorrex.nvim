@@ -1,6 +1,13 @@
 -- Language servers: references, inlay hints and semantic tokens.
+--
+-- A server's tokens read through the same meanings as Tree-sitter's captures (see
+-- meanings.lua, tier 3). A token type with no opinion gets an empty group, not none:
+-- Neovim links every standard type to a capture by default, and that link would paint
+-- over what the grammar said.
+local Meanings = require("colorrex.meanings")
+
 return function(define)
-  local link, syn, each = define.link, define.syn, define.each
+  local each, meaning = define.each, define.meaning
   local G = {}
 
   each(G, { "LspReferenceText", "LspReferenceRead", "LspReferenceTarget" }, { bg = "reference" })
@@ -9,23 +16,15 @@ return function(define)
   G.LspCodeLens = { fg = "comment" }
   G.LspCodeLensSeparator = { fg = "border" }
   G.LspSignatureActiveParameter = { fg = "accent", bold = true }
-  G["@lsp.type.keyword"] = syn("keyword")
-  G["@lsp.type.modifier"] = syn("keyword")
-  each(G, { "@lsp.type.function", "@lsp.type.method" }, syn("func"))
-  G["@lsp.type.macro"] = { fg = "preproc" }
-  G["@lsp.type.decorator"] = syn("type")
-  each(G, {
-    "@lsp.type.type", "@lsp.type.class", "@lsp.type.struct", "@lsp.type.enum",
-    "@lsp.type.interface", "@lsp.type.namespace", "@lsp.type.typeParameter",
-  }, syn("type"))
-  G["@lsp.type.parameter"] = { fg = "muted" }
-  G["@lsp.type.property"] = { fg = "property" }
-  G["@lsp.type.variable"] = { fg = "fg" }
-  G["@lsp.type.enumMember"] = syn("number")
-  G["@lsp.type.string"] = syn("string")
-  G["@lsp.type.number"] = syn("number")
-  G["@lsp.type.operator"] = { fg = "muted" }
-  G["@lsp.type.comment"] = link("Comment")
+
+  for token, name in pairs(Meanings.TOKENS) do
+    G["@lsp.type." .. token] = meaning(name)
+  end
+  for _, token in ipairs(Meanings.SILENT_TOKENS) do
+    G["@lsp.type." .. token] = {}
+  end
+  -- What a server knows about a word, beyond what it is, is drawn as style and never as
+  -- color, so the word still reads as what it is.
   G["@lsp.mod.deprecated"] = { strikethrough = true }
 
   return G

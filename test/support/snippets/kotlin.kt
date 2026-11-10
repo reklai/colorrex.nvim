@@ -4,3 +4,4 @@ fun parse(text: String?): Int {
     try { return text.toInt() } catch (err: NumberFormatException) { error("bad") } finally { done = true }
     TODO()
 }
+fun size(a: String?): Int = a?.length ?: a!!.length

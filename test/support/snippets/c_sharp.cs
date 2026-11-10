@@ -5,3 +5,4 @@ class P {
     try { return int.Parse(text); } catch (FormatException err) { throw; } finally { done = true; }
   }
 }
+class Q { int Size(string? a) => a?.Length ?? a!.Length; }

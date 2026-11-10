@@ -4,3 +4,8 @@ parse() {
   set -e
   value=$(( $1 + 3 )) || exit 1
 }
+source ~/.bashrc
+if [[ "$name" =~ ^[a-z]+$ ]]; then
+  cd ~/projects || exit
+fi
+echo done > out.log

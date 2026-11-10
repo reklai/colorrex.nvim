@@ -19,17 +19,26 @@ for _, path in ipairs(files) do
   local lang = vim.fn.fnamemodify(path, ":t:r")
   local words = Captures.words(table.concat(vim.fn.readfile(path), "\n"), lang)
   if words then
-    local rows = {}
+    local rows, last = {}, 0 -- a line with no words leaves a hole, so count rows by hand
     for _, word in ipairs(words) do
+      last = math.max(last, word.row + 1)
       local capture = word.capture and ("@" .. word.capture) or "-"
-      local bare = word.text:gsub("^:+(%a)", "%1"):gsub(":$", "")
-      local added = capture ~= "-" and (Meanings.refine(capture, word.text, lang) or Meanings.refine(capture, bare, lang))
-      local failure = added == "failure"
+      -- What the lexicon adds, read as the host reads it: the node's own text, with its
+      -- parent at hand; else the word as it appears in the line.
+      local function parent()
+        return word.parent
+      end
+      local added
+      if capture ~= "-" then
+        local bare = word.text:gsub("^:+(%a)", "%1"):gsub(":$", "")
+        added = (word.node_text and Meanings.refine(capture, word.node_text, lang, parent))
+          or Meanings.refine(capture, word.text, lang, parent) or Meanings.refine(capture, bare, lang, parent)
+      end
       rows[word.row + 1] = rows[word.row + 1] or {}
-      table.insert(rows[word.row + 1], ("{ %q, %q%s }"):format(word.text, capture, failure and ", true" or ""))
+      table.insert(rows[word.row + 1], ("{ %q, %q%s }"):format(word.text, capture, added and (", %q"):format(added) or ""))
     end
     out[#out + 1] = ("  %s = {"):format(lang)
-    for index = 1, #rows do
+    for index = 1, last do
       out[#out + 1] = "    { " .. table.concat(rows[index] or {}, ", ") .. " },"
     end
     out[#out + 1] = "  },"

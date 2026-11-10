@@ -121,13 +121,14 @@ end)
 
 -- Negation, on real grammars: the word list names `!`'s parent node, so a grammar
 -- that renames it would quietly lose it. Each case is code, and what each `!` or
--- `not` in it should come out as, in order.
+-- `not` in it should come out as, in order. A postfix `!`, as in TypeScript's `foo!`,
+-- says a value is there, which is failure's question.
 local NEGATION = {
   go = { "package m\nfunc f() { if !ok && x != 1 { } }", { "negation" } },
   c = { "int f(void) { if (!ok) return !x; return a != b; }", { "negation", "negation" } },
   javascript = { "if (!ok) { x = !y; }", { "negation", "negation" } },
-  typescript = { "if (!ok) { const z = foo!.bar; }", { "negation", false } },
-  rust = { "fn f() -> ! { if !items.is_empty() { panic!(\"x\"); } }", { false, "negation", false } },
+  typescript = { "if (!ok) { const z = foo!.bar; }", { "negation", "failure" } },
+  rust = { "fn f() -> ! { if !items.is_empty() { panic!(\"x\"); } }", { false, "negation", "failure" } },
   zig = { "fn f() !void { if (!ok) return; }", { false, false } },
   lua = { "if not ok then return end", { "negation" } },
   python = { "if not ready and x is not None:\n  pass", { "negation", "negation" } },
@@ -137,9 +138,9 @@ local NEGATION = {
   ruby = { "x = !ok\ny = not done", { "negation", "negation" } },
   elixir = { "if !ok, do: x\nif not done, do: y", { "negation", "negation" } },
   kotlin = { "fun f(ok: Boolean) { if (!ok) return; val z = a!!.b }", { "negation" } },
-  swift = { "func f(ok: Bool) { if !ok { return }; let z = a!.b }", { "negation", false } },
+  swift = { "func f(ok: Bool) { if !ok { return }; let z = a!.b }", { "negation", "failure" } },
   c_sharp = { "class A { bool F(bool ok) { if (!ok) return !ok; var z = a!.B; return z; } }",
-    { "negation", "negation", false } },
+    { "negation", "negation", "failure" } },
   php = { "<?php if (!$ok) { $z = !$done; }", { "negation", "negation" } },
   odin = { "f :: proc(ok: bool) { if !ok { return } }", { "negation" } },
   haskell = { "f x = not x", { "negation" } },

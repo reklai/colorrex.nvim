@@ -6,6 +6,7 @@
 --
 --   terminal theme --> roles --+--> highlights
 --   any grammar ---> meanings -+
+--   any server ----> meanings -+
 --
 -- Each meaning wears exactly one role, and no two meanings share one, so a color
 -- means one thing wherever it appears. A language reaches these meanings in tiers:
@@ -16,6 +17,7 @@
 --      kind of capture they come in, so `nil`, `null`, `None` and `Nothing` all read
 --      as one. It names words and never grammar nodes, so no grammar update can
 --      break it.
+--   3. A language server's token types, where a server knows what a grammar cannot.
 --
 -- Pure: no Neovim, so every rule here runs under plain LuaJIT.
 local M = {}
@@ -30,6 +32,7 @@ M.VOCABULARY = {
   { name = "field", role = "property", asks = "which part is the object?" },
   { name = "text", role = "string", asks = "what does it say?" },
   { name = "value", role = "number", asks = "what literal is this?" },
+  { name = "escape", role = "operator", asks = "what in this text is not literal?" },
   { name = "boundary", role = "preproc", asks = "what comes from elsewhere?" },
   { name = "name", role = "fg", asks = "which variable is this?" },
   { name = "quiet", role = "muted", asks = "nothing; it is structure" },
@@ -51,6 +54,15 @@ M.CAPTURES = {
   ["@number.float"] = "value",
   ["@character"] = "text",
   ["@string"] = "text",
+  ["@string.special.path"] = "text",
+  -- What a string or pattern holds that is not its own text: `\n`, `${id}`, `\d+`.
+  ["@string.escape"] = "escape",
+  ["@string.regexp"] = "escape",
+  ["@string.special"] = "escape",
+  ["@character.special"] = "escape",
+  ["@punctuation.special"] = "escape",
+  -- A symbol or atom names a constant, as `true` does: `:ok` is a value.
+  ["@string.special.symbol"] = "value",
   ["@type"] = "type",
   ["@type.builtin"] = "type",
   ["@type.definition"] = "type",
@@ -59,6 +71,17 @@ M.CAPTURES = {
   ["@module.builtin"] = "type",
   ["@attribute"] = "type",
   ["@attribute.builtin"] = "type",
+  -- A tag names a kind of element, as a type names a kind of value, and its attributes
+  -- are its fields.
+  ["@tag"] = "type",
+  ["@tag.builtin"] = "type",
+  ["@tag.attribute"] = "field",
+  ["@tag.delimiter"] = "quiet",
+  ["@keyword.import"] = "boundary",
+  ["@keyword.directive"] = "boundary",
+  ["@keyword.directive.define"] = "boundary",
+  ["@function.macro"] = "boundary",
+  ["@constant.macro"] = "boundary",
   ["@function"] = "call",
   ["@function.call"] = "call",
   ["@function.method"] = "call",
@@ -70,12 +93,44 @@ M.CAPTURES = {
   ["@variable.member"] = "field",
   ["@property"] = "field",
   ["@variable.builtin"] = "quiet",
-  ["@variable.parameter"] = "quiet",
+  -- A parameter is a name like any other: one you follow through the function. It reads
+  -- the same where it is declared and where it is used, with a server or without one.
+  ["@variable.parameter"] = "name",
   ["@variable.parameter.builtin"] = "quiet",
   ["@operator"] = "quiet",
+  -- A word that works as an operator reads as its symbol does: `and` as `&&`.
+  ["@keyword.operator"] = "quiet",
+  ["@keyword.conditional.ternary"] = "quiet",
   ["@punctuation.delimiter"] = "quiet",
   ["@punctuation.bracket"] = "quiet",
 }
+
+-- Tier 3: what a language server's token adds. A server resolves names, which a
+-- grammar cannot: it knows that `fmt.` is a package, that a name holds a function, that
+-- `EINVAL` is a macro. Those token types speak. The rest only restate the
+-- grammar in coarser words: to a server a constant, `console` and Lua's `io` are all just
+-- variables. They have no opinion, and the grammar's meaning stands, so a word reads the
+-- same with a server attached or without one.
+M.TOKENS = {
+  namespace = "type",
+  type = "type",
+  class = "type",
+  struct = "type",
+  interface = "type",
+  enum = "type",
+  typeParameter = "type",
+  decorator = "type",
+  ["function"] = "call",
+  method = "call",
+  macro = "boundary",
+  enumMember = "value",
+  property = "field",
+  parameter = "name",
+}
+
+-- The standard token types with no opinion. Each is named because Neovim links them
+-- all to a capture by default, and that link would paint over the grammar.
+M.SILENT_TOKENS = { "variable", "keyword", "modifier", "string", "number", "regexp", "operator", "comment", "event" }
 
 -- Tier 2: the failure lexicon. Each entry is a kind of capture and the words that mean
 -- failure when they come in it. A word in another kind of capture is left alone: `error`
@@ -111,6 +166,42 @@ M.LEXICON = {
     },
   },
   { kinds = { "operator" }, words = { "?" }, langs = { rust = true } }, -- Rust's error propagation
+  -- The `!` of `panic!` and `todo!`, so a server that calls it a macro leaves it whole.
+  { kinds = { "keyword.exception" }, words = { "!" }, langs = { rust = true } },
+
+  -- Where something may be missing, as nil may be: what fails if it is, and what steps
+  -- around it. `unwrap` and `!!` stop the program, as `panic` does; `??`, `?.` and
+  -- `unwrap_or` handle it, as Zig's `orelse` and `catch` do.
+  {
+    kinds = { "function" },
+    words = { "unwrap", "expect", "unwrap_err", "expect_err", "unwrap_or", "unwrap_or_else", "unwrap_or_default" },
+    langs = { rust = true },
+  },
+  { kinds = { "function" }, words = { "fromJust", "fromMaybe" }, langs = { haskell = true } },
+  { kinds = { "operator", "keyword" }, words = { "??", "??=" } }, -- PHP files `??` as a keyword
+  { kinds = { "operator", "punctuation.delimiter" }, words = { "?.", "?->" } },
+  { kinds = { "operator" }, words = { "!!", "?:" }, langs = { kotlin = true } },
+  -- A postfix `!` says "this is here": TypeScript's `user!`, Swift's `a!`, C#'s `a!`.
+  {
+    kinds = { "operator" },
+    words = { "!" },
+    langs = { typescript = true, tsx = true, swift = true, c_sharp = true },
+    parents = { "non_null_expression", "postfix_expression", "postfix_unary_expression" },
+  },
+  -- Swift's `a?.count` and C#'s `a?.Length`, but not the `?` of a type like `String?`.
+  {
+    kinds = { "operator" },
+    words = { "?" },
+    langs = { swift = true, c_sharp = true },
+    parents = { "navigation_expression", "conditional_access_expression" },
+  },
+  -- Go names its errors: `ErrNotFound`, `errClosed`, `io.EOF`, `sql.ErrNoRows`.
+  {
+    kinds = { "variable", "property" },
+    words = { "EOF" },
+    patterns = { "^Err%u", "^err%u" },
+    langs = { go = true },
+  },
 
   -- Negation: the one character that turns a condition around. Grammars file `!` and
   -- `not` with `+` and `,`, the quietest text on the line, so `if !ok` read as `if ok`
@@ -136,11 +227,24 @@ M.LEXICON = {
       "negated_command", -- Bash's `! cmd`
     },
   },
+
+  -- Keys: Ruby's `{ name: 1 }` and Elixir's `[message: "bad"]` name a part of what they
+  -- build, as `{ name: 1 }` does in JavaScript, so they read as fields. Their grammars
+  -- call them symbols, like the atom `:ok`, which is a value; only an atom starts with a
+  -- colon. Ruby's `:sym => 1` is an atom in a pair, and keeps its colon.
+  {
+    kinds = { "string.special.symbol" },
+    patterns = { "^[^:]" },
+    langs = { ruby = true, elixir = true },
+    parents = { "pair" },
+    meaning = "key",
+  },
 }
 
 -- What the lexicon can add, and the meaning each is drawn as. Negation is control,
--- made louder: it decides which way the flow goes, like the `if` it sits in.
-M.ADDED = { failure = "failure", negation = "control" }
+-- made louder: it decides which way the flow goes, like the `if` it sits in. A key is
+-- a field.
+M.ADDED = { failure = "failure", negation = "control", key = "field" }
 
 local function set(list)
   local out = {}
@@ -176,8 +280,8 @@ end
 
 local MAX_WORD = 40 -- no word in the lexicon is longer; nothing longer is looked at
 
---- What the lexicon adds to `text` in this capture: "failure" or "negation" (see
---- ADDED), or nil when it has nothing to add to the capture's own. These are the
+--- What the lexicon adds to `text` in this capture: "failure", "negation" or "key"
+--- (see ADDED), or nil when it has nothing to add to the capture's own. These are the
 --- meanings no grammar marks on its own. `parent`, when given, returns the type of
 --- the node's parent; it is only called for a word whose meaning depends on it, and a
 --- word like that is left alone without it.
@@ -186,16 +290,19 @@ function M.refine(capture, text, lang, parent)
     return nil
   end
   local word = text:match("^[%w_]+::([%w_]+)$") or text -- C++ std::runtime_error, Rust ParseError::Empty
+  local function placed(entry)
+    return not entry.parents or (parent ~= nil and entry.parents[parent()] == true)
+  end
   for _, kind in ipairs(kinds_of(capture)) do
     for _, entry in ipairs(BY_KIND[kind] or {}) do
       if not entry.langs or entry.langs[lang] then
         if entry.words[word] then
-          if not entry.parents or (parent and entry.parents[parent()]) then
+          if placed(entry) then
             return entry.meaning
           end
         else
           for _, pattern in ipairs(entry.patterns) do
-            if word:find(pattern) then
+            if word:find(pattern) and placed(entry) then
               return entry.meaning
             end
           end

@@ -7,3 +7,4 @@ rescue ArgumentError => err
 ensure
   @done = true
 end
+options = { name: "x", retries: 3, mode: :fast }

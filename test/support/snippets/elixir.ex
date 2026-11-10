@@ -10,3 +10,5 @@ defmodule P do
   def check(nil), do: raise("empty")
   def ready, do: true
 end
+pattern = ~r/\d+/
+words = ~w(a b)

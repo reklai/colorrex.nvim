@@ -15,8 +15,15 @@ local READING = require("reading")
 local OPTS = Config.resolve()
 
 -- Lowered by hand as the compiler improves. Raising one means code reads worse.
-local LOOK_ALIKE_LIMIT = 0.0050 -- neighbors that mean different things but look the same
-local LOOK_ALIKE_BY_SIDE = { dark = 0.0050, light = 0.0051 } -- each mode on its own, so neither hides in the other
+--
+-- Raised once, on purpose, from 0.0050 and 0.0050/0.0051, when the samples grew to read
+-- every capture colorrex colors: the old compiler read 0.82% on them. The rest is fields
+-- read beside the values they hold. Ruby's `{ retries: 3 }` and Elixir's `message: "bad"`
+-- now read as the fields they are, as `{ retries: 3 }` does in JavaScript, and in about
+-- one theme in five a field sits near a value's color. In return nothing but failure
+-- wears failure's color in any theme, where 278 had something else in it.
+local LOOK_ALIKE_LIMIT = 0.0098 -- neighbors that mean different things but look the same
+local LOOK_ALIKE_BY_SIDE = { dark = 0.0101, light = 0.0087 } -- each mode on its own, so neither hides in the other
 
 local function corpus()
   local themes = {}
@@ -35,12 +42,16 @@ local function corpus()
   return themes
 end
 
+-- What the lexicon adds, as the host draws it.
+local ADDED_GROUP = { failure = "ColorRexFailure", negation = "ColorRexNegation", key = "ColorRexKey" }
+
 --- The group colorrex defines for a capture, as Neovim finds it: @a.b.lang, then
---- @a.b, then @a, following links.
-local function look(compiled, capture, lang, failure)
-  if failure then
-    local spec = compiled.groups.ColorRexFailure
-    return spec.fg, spec, "failure"
+--- @a.b, then @a, following links. A meaning the lexicon added draws over it.
+local function look(compiled, capture, lang, added)
+  if added then
+    local group = ADDED_GROUP[added]
+    local spec = compiled.group_specs[group]
+    return compiled.groups[group].fg, spec, spec.fg
   end
   local specs = compiled.group_specs
   local name = capture ~= "-" and (capture .. "." .. lang) or nil
@@ -69,13 +80,47 @@ local function each_word(compiled, visit)
       local previous
       for _, word in ipairs(row) do
         local hex, spec, role = look(compiled, word[2], lang, word[3])
-        local current = { text = word[1], hex = hex, spec = spec, role = role, failure = word[3] == true, lang = lang }
+        local current = { text = word[1], hex = hex, spec = spec, role = role, failure = word[3] == "failure", lang = lang }
         visit(current, previous)
         previous = current
       end
     end
   end
 end
+
+-- Captures the samples cannot hold, and why. Everything else colorrex colors as code
+-- is read in at least one of them, so no capture's color goes unchecked.
+local UNREAD = {
+  ["@comment.error"] = "the comment parser's, which no sample injects",
+  ["@comment.warning"] = "the comment parser's",
+  ["@comment.note"] = "the comment parser's",
+  ["@comment.todo"] = "the comment parser's",
+  ["@string.special.url"] = "a link, not code",
+  ["@punctuation.delimiter"] = "punctuation is never a word",
+  ["@punctuation.special"] = "punctuation is never a word",
+  ["@tag.delimiter"] = "punctuation is never a word",
+  ["@variable.parameter.builtin"] = "Lua's `...`, never a word",
+}
+
+T.test("reading: every capture colored as code is read in some sample", function()
+  local read = {}
+  for _, rows in pairs(READING) do
+    for _, row in ipairs(rows) do
+      for _, word in ipairs(row) do
+        read[word[2]] = true
+      end
+    end
+  end
+  local unread = {}
+  for name in pairs(Compiler.compile(require("fixtures").theme(), OPTS).group_specs) do
+    local code = name:match("^@") and not name:match("^@markup") and not name:match("^@diff") and not name:match("^@lsp")
+    if code and not read[name] and not UNREAD[name] then
+      unread[#unread + 1] = name
+    end
+  end
+  table.sort(unread)
+  T.eq(#unread, 0, "no sample reads " .. table.concat(unread, ", "))
+end)
 
 T.test("reading: nothing but failure is drawn in failure's color, in any theme or language", function()
   local themes = corpus()
@@ -162,7 +207,7 @@ T.test("reading: comments sit below the code they annotate, in light themes as i
   if next(themes) == nil then
     T.skip("no theme corpus at " .. CORPUS)
   end
-  local LIMIT = { dark = 35, light = 13 } -- lowered by hand; from 169 and 95
+  local LIMIT = { dark = 1, light = 0 } -- lowered by hand; from 169 and 95, then 35 and 13
   local loud = { dark = 0, light = 0 }
   for _, theme in pairs(themes) do
     local compiled = Compiler.compile(theme, OPTS)
