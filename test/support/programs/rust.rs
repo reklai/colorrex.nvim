@@ -84,6 +84,14 @@ fn load(path: &str) -> Result<Vec<Entry>, ParseError> {
     Ok(entries)
 }
 
+#[expect(dead_code)]
+fn summarize(entries: &[Entry], visit: impl Fn(&Entry)) {
+    for entry in entries {
+        visit(entry);
+    }
+    todo!("print a summary");
+}
+
 #[allow(deprecated)]
 fn main() {
     let mut counts: HashMap<String, usize> = HashMap::new();
@@ -96,6 +104,10 @@ fn main() {
             Err(err) => panic!("giving up: {}", err),
         }
     };
+    if entries.is_empty() {
+        unreachable!("load returns entries or an error");
+    }
+    assert_eq!(counts.len(), 0, "nothing counted yet");
     for entry in &entries {
         if !entry.is_serious() {
             continue;

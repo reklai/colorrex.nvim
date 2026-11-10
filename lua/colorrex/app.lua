@@ -185,7 +185,10 @@ end
 function App:shape()
   self.host.decorate({
     landmarks = self.config.chunks and Chunks.landmarks or nil,
-    refine = Meanings.refine,
+    refine = function(capture, text, lang, parent, previous)
+      local added = Meanings.refine(capture, text, lang, parent, previous)
+      return added and Meanings.GROUP[added]
+    end,
     can_refine = Meanings.can_refine,
   })
 end

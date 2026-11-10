@@ -125,12 +125,19 @@ M.TOKENS = {
   macro = "boundary",
   enumMember = "value",
   property = "field",
-  parameter = "name",
 }
 
 -- The standard token types with no opinion. Each is named because Neovim links them
--- all to a capture by default, and that link would paint over the grammar.
-M.SILENT_TOKENS = { "variable", "keyword", "modifier", "string", "number", "regexp", "operator", "comment", "event" }
+-- all to a capture by default, and that link would paint over the grammar. A parameter
+-- is a name, which the grammar says too, and only the grammar sees it called: `cb(x)`.
+M.SILENT_TOKENS = {
+  "variable", "parameter", "keyword", "modifier", "string", "number", "regexp", "operator", "comment", "event",
+}
+
+-- The one token type that speaks in some languages only. clangd sends the code an `#if`
+-- turned off as `comment`, which a grammar parses as live code, and sends nothing for a
+-- real comment. That code reads as a comment.
+M.INACTIVE = { token = "comment", langs = { c = true, cpp = true, objc = true, objcpp = true, cuda = true } }
 
 -- Tier 2: the failure lexicon. Each entry is a kind of capture and the words that mean
 -- failure when they come in it. A word in another kind of capture is left alone: `error`
@@ -142,8 +149,13 @@ local ABSENT = {
 }
 M.LEXICON = {
   { kinds = { "constant", "boolean", "constructor", "variable.builtin" }, words = ABSENT },
-  -- BEAM atoms: Erlang's error, undefined and 'EXIT', Elixir's :error.
-  { kinds = { "constant", "string.special.symbol" }, words = { "error", "undefined", "'EXIT'", ":error" } },
+  -- BEAM atoms: Erlang's error, undefined and 'EXIT', Elixir's :error. Only there: a
+  -- Ruby symbol named error is a name like any other, and `{ error: 1 }` has a field.
+  {
+    kinds = { "constant", "string.special.symbol" },
+    words = { "error", "undefined", "'EXIT'", ":error" },
+    langs = { erlang = true, elixir = true },
+  },
   { kinds = { "variable", "variable.parameter" }, words = { "err", "errno" }, patterns = { "%lErr$", "_err$" } },
   {
     kinds = { "type", "constructor", "module" },
@@ -166,20 +178,26 @@ M.LEXICON = {
     },
   },
   { kinds = { "operator" }, words = { "?" }, langs = { rust = true } }, -- Rust's error propagation
-  -- The `!` of `panic!` and `todo!`, so a server that calls it a macro leaves it whole.
-  { kinds = { "keyword.exception" }, words = { "!" }, langs = { rust = true } },
+  -- What a grammar calls an exception stays failure, whatever a server calls it:
+  -- rust-analyzer calls `panic!` and `assert_eq!` macros, name and `!` alike.
+  { kinds = { "keyword.exception" }, patterns = { "." } },
+  -- A macro's `!` reads as its name does, so `todo!` is one word, as `panic!` is.
+  { kinds = { "function.macro" }, words = { "!" }, langs = { rust = true }, as_previous = true },
 
   -- Where something may be missing, as nil may be: what fails if it is, and what steps
   -- around it. `unwrap` and `!!` stop the program, as `panic` does; `??`, `?.` and
-  -- `unwrap_or` handle it, as Zig's `orelse` and `catch` do.
+  -- `unwrap_or` handle it, as Zig's `orelse` and `catch` do. Only where they are called:
+  -- `#[expect(dead_code)]` is an attribute.
   {
-    kinds = { "function" },
+    kinds = { "function.call", "function.method" },
     words = { "unwrap", "expect", "unwrap_err", "expect_err", "unwrap_or", "unwrap_or_else", "unwrap_or_default" },
     langs = { rust = true },
   },
   { kinds = { "function" }, words = { "fromJust", "fromMaybe" }, langs = { haskell = true } },
   { kinds = { "operator", "keyword" }, words = { "??", "??=" } }, -- PHP files `??` as a keyword
-  { kinds = { "operator", "punctuation.delimiter" }, words = { "?.", "?->" } },
+  { kinds = { "operator" }, words = { "?.", "?->" } },
+  -- JavaScript's grammar files `?.` with `.` and `,`, which nothing else here reads.
+  { kinds = { "punctuation.delimiter" }, words = { "?." }, langs = { javascript = true, typescript = true, tsx = true } },
   { kinds = { "operator" }, words = { "!!", "?:" }, langs = { kotlin = true } },
   -- A postfix `!` says "this is here": TypeScript's `user!`, Swift's `a!`, C#'s `a!`.
   {
@@ -195,10 +213,11 @@ M.LEXICON = {
     langs = { swift = true, c_sharp = true },
     parents = { "navigation_expression", "conditional_access_expression" },
   },
-  -- Go names its errors: `ErrNotFound`, `errClosed`, `io.EOF`, `sql.ErrNoRows`.
+  -- Go names its errors: `ErrNotFound`, `errClosed`, `io.EOF`, `sql.ErrNoRows`, and the
+  -- field that holds one, `e.Err`. A function is not an error: `ErrLog("x")` is a call.
   {
     kinds = { "variable", "property" },
-    words = { "EOF" },
+    words = { "EOF", "Err" },
     patterns = { "^Err%u", "^err%u" },
     langs = { go = true },
   },
@@ -246,6 +265,12 @@ M.LEXICON = {
 -- a field.
 M.ADDED = { failure = "failure", negation = "control", key = "field" }
 
+-- The group each is drawn in, named after it: ColorRexFailure, ColorRexNegation.
+M.GROUP = {}
+for added in pairs(M.ADDED) do
+  M.GROUP[added] = "ColorRex" .. added:sub(1, 1):upper() .. added:sub(2)
+end
+
 local function set(list)
   local out = {}
   for _, item in ipairs(list or {}) do
@@ -254,7 +279,8 @@ local function set(list)
   return out
 end
 
--- Index: kind -> { words = set, patterns = list, langs = set|nil, meaning, parents = set|nil } entries.
+-- Index: kind -> { words = set, patterns = list, langs = set|nil, meaning, parents = set|nil,
+-- as_previous } entries.
 local BY_KIND = {}
 for _, entry in ipairs(M.LEXICON) do
   local words = set(entry.words)
@@ -263,6 +289,7 @@ for _, entry in ipairs(M.LEXICON) do
     table.insert(BY_KIND[kind], {
       words = words, patterns = entry.patterns or {}, langs = entry.langs,
       meaning = entry.meaning or "failure", parents = entry.parents and set(entry.parents),
+      as_previous = entry.as_previous,
     })
   end
 end
@@ -282,30 +309,44 @@ local MAX_WORD = 40 -- no word in the lexicon is longer; nothing longer is looke
 
 --- What the lexicon adds to `text` in this capture: "failure", "negation" or "key"
 --- (see ADDED), or nil when it has nothing to add to the capture's own. These are the
---- meanings no grammar marks on its own. `parent`, when given, returns the type of
---- the node's parent; it is only called for a word whose meaning depends on it, and a
---- word like that is left alone without it.
-function M.refine(capture, text, lang, parent)
+--- meanings no grammar marks on its own. `capture` is the one the highlighter draws on
+--- the word, since that is what the word reads as. `parent`, when given, returns the
+--- type of the node's parent, and `previous` the text of the node just before it; each
+--- is only called for a word whose meaning depends on it, and a word like that is left
+--- alone without it.
+function M.refine(capture, text, lang, parent, previous)
   if #text > MAX_WORD then
     return nil
   end
-  local word = text:match("^[%w_]+::([%w_]+)$") or text -- C++ std::runtime_error, Rust ParseError::Empty
+  -- C++ std::runtime_error, Rust ParseError::Empty, PHP's $err
+  local word = text:match("^[%w_]+::([%w_]+)$") or text:match("^%$([%w_]+)$") or text
   local function placed(entry)
     return not entry.parents or (parent ~= nil and entry.parents[parent()] == true)
+  end
+  --- The entry's meaning here, or nil: an entry that reads as the word before it has
+  --- none when that word has none.
+  local function meaning_of(entry)
+    if not entry.as_previous then
+      return entry.meaning
+    end
+    local before = previous and previous()
+    return before and M.refine(capture, before, lang)
   end
   for _, kind in ipairs(kinds_of(capture)) do
     for _, entry in ipairs(BY_KIND[kind] or {}) do
       if not entry.langs or entry.langs[lang] then
+        local found
         if entry.words[word] then
-          if placed(entry) then
-            return entry.meaning
-          end
+          found = placed(entry) and meaning_of(entry)
         else
           for _, pattern in ipairs(entry.patterns) do
-            if word:find(pattern) and placed(entry) then
-              return entry.meaning
+            if not found and word:find(pattern) and placed(entry) then
+              found = meaning_of(entry)
             end
           end
+        end
+        if found then
+          return found
         end
       end
     end
@@ -313,15 +354,27 @@ function M.refine(capture, text, lang, parent)
   return nil
 end
 
---- Whether the lexicon could say anything about a capture, so a host can skip the
---- rest without reading their text.
-function M.can_refine(capture)
-  for _, kind in ipairs(kinds_of(capture)) do
-    if BY_KIND[kind] then
-      return true
-    end
+local readable = {} -- lang -> capture -> boolean, as can_refine answers
+
+--- Whether the lexicon could say anything about a capture in a language, so a host can
+--- skip the rest without reading their text. It is asked for every capture on screen.
+function M.can_refine(capture, lang)
+  local known = readable[lang or ""]
+  if not known then
+    known = {}
+    readable[lang or ""] = known
   end
-  return false
+  local answer = known[capture]
+  if answer == nil then
+    answer = false
+    for _, kind in ipairs(kinds_of(capture)) do
+      for _, entry in ipairs(BY_KIND[kind] or {}) do
+        answer = answer or not entry.langs or entry.langs[lang] == true
+      end
+    end
+    known[capture] = answer
+  end
+  return answer
 end
 
 --- The meaning of a capture by tier 1 alone: its own entry, else its parent's.

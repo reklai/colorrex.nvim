@@ -402,9 +402,15 @@ T.test("servers: a token speaks only where a server knows what a grammar cannot"
   for token, name in pairs(Meanings.TOKENS) do
     T.eq(G["@lsp.type." .. token].fg, R[Meanings.ROLE[name]].hex, token)
   end
-  -- A parameter is a name with a server or without one.
-  T.eq(G["@lsp.type.parameter"].fg, G["@variable.parameter"].fg)
+  -- A parameter is a name with a server or without one, and the grammar's, which sees
+  -- `cb(x)` called, stands.
+  T.eq(next(G["@lsp.type.parameter"]), nil)
   T.eq(G["@variable.parameter"].fg, G["@variable"].fg)
+  -- clangd's `comment` is code an `#if` turned off, and reads as a comment; anywhere
+  -- else a server's comment is over a comment the grammar already drew.
+  T.eq(compiled.group_specs["@lsp.type.comment.c"].link, "Comment")
+  T.eq(compiled.group_specs["@lsp.type.comment.cpp"].link, "Comment")
+  T.eq(compiled.group_specs["@lsp.type.comment.lua"], nil)
   -- What a server knows beyond what a word is never changes its color.
   T.eq(G["@lsp.mod.deprecated"].fg, nil)
 end)

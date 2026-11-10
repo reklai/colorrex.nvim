@@ -82,6 +82,56 @@ T.test("lexicon: Go's named errors are failure", function()
   T.eq(Meanings.refine("@property", "EOF", "go"), "failure")
   T.eq(Meanings.refine("@variable", "Errand", "go"), nil)
   T.eq(Meanings.refine("@variable", "ErrNotFound", "python"), nil)
+  -- The field that holds one, as `e.Err`, and where it is declared.
+  T.eq(Meanings.refine("@property", "Err", "go"), "failure")
+  T.eq(Meanings.refine("@variable.member", "Err", "go"), "failure")
+  -- A function named like one is drawn as the call it is, and read as one.
+  T.eq(Meanings.refine("@function.call", "ErrLog", "go"), nil)
+  T.eq(Meanings.refine("@function", "ErrLog", "go"), nil)
+end)
+
+T.test("lexicon: an exception stays failure, whatever a server calls it", function()
+  -- rust-analyzer calls these macros, which would read as imports.
+  T.eq(Meanings.refine("@keyword.exception", "assert_eq", "rust"), "failure")
+  T.eq(Meanings.refine("@keyword.exception", "debug_assert_ne", "rust"), "failure")
+  T.eq(Meanings.refine("@keyword.exception", "!", "rust"), "failure")
+  T.eq(Meanings.refine("@keyword.exception", "finally", "python"), "failure")
+end)
+
+T.test("lexicon: a macro's `!` reads as its name does", function()
+  local function before(text)
+    return function()
+      return text
+    end
+  end
+  T.eq(Meanings.refine("@function.macro", "!", "rust", nil, before("todo")), "failure")
+  T.eq(Meanings.refine("@function.macro", "!", "rust", nil, before("unreachable")), "failure")
+  T.eq(Meanings.refine("@function.macro", "!", "rust", nil, before("std::unimplemented")), "failure")
+  T.eq(Meanings.refine("@function.macro", "!", "rust", nil, before("println")), nil)
+  T.eq(Meanings.refine("@function.macro", "!", "rust"), nil, "with nothing before it, nothing is guessed")
+  T.eq(Meanings.refine("@function.macro", "!", "c", nil, before("todo")), nil)
+end)
+
+T.test("lexicon: unwrap and expect are failure where called, not as an attribute", function()
+  T.eq(Meanings.refine("@function.call", "expect", "rust"), "failure")
+  T.eq(Meanings.refine("@function.method.call", "unwrap", "rust"), "failure")
+  T.eq(Meanings.refine("@function.macro", "expect", "rust"), nil) -- #[expect(dead_code)]
+end)
+
+T.test("lexicon: PHP's variables are read without their `$`", function()
+  T.eq(Meanings.refine("@variable", "$err", "php"), "failure")
+  T.eq(Meanings.refine("@variable", "$errors", "php"), nil)
+end)
+
+T.test("lexicon: the host reads only captures the lexicon could refine in that language", function()
+  T.ok(Meanings.can_refine("@property", "go"), "Go's errors are fields too")
+  T.ok(not Meanings.can_refine("@property", "lua"), "no other language's fields")
+  T.ok(Meanings.can_refine("@punctuation.delimiter", "typescript"), "TypeScript files `?.` there")
+  T.ok(not Meanings.can_refine("@punctuation.delimiter", "rust"), "no other language's `.` and `,`")
+  T.ok(Meanings.can_refine("@operator", "python"))
+  T.ok(Meanings.can_refine("@function.method.call", "rust"))
+  T.ok(not Meanings.can_refine("@string", "go"))
+  T.ok(Meanings.can_refine("@operator"), "a language it does not know is read in full")
 end)
 
 T.test("lexicon: a key in a pair is a field, and an atom is a value", function()
@@ -92,6 +142,11 @@ T.test("lexicon: a key in a pair is a field, and an atom is a value", function()
   T.eq(Meanings.refine("@string.special.symbol", "quoted", "ruby", parent("delimited_symbol")), nil)
   T.eq(Meanings.refine("@string.special.symbol", ":error", "elixir", parent("pair")), "failure")
   T.eq(Meanings.of_capture("@string.special.symbol"), "value")
+  -- A key named error is a field in Ruby too; only BEAM's atoms are failure.
+  T.eq(Meanings.refine("@string.special.symbol", "error", "ruby", parent("pair")), "key")
+  T.eq(Meanings.refine("@string.special.symbol", "error: ", "elixir", parent("pair")), "key")
+  T.eq(Meanings.refine("@string.special.symbol", ":error", "ruby"), nil)
+  T.eq(Meanings.refine("@constant", "error", "erlang"), "failure")
 end)
 
 T.test("vocabulary: every color code is drawn in belongs to a meaning", function()
@@ -118,8 +173,16 @@ T.test("vocabulary: every color code is drawn in belongs to a meaning", function
   T.eq(#loose, 0, table.concat(loose, ", "))
 end)
 
-T.test("lexicon: each added meaning is drawn as one the vocabulary has", function()
+T.test("lexicon: each added meaning is drawn as one the vocabulary has, in a group of its own", function()
+  local Compiler, Config = require("colorrex.compiler"), require("colorrex.config")
+  local compiled = Compiler.compile(require("fixtures").theme(), Config.resolve())
+  local groups = {}
   for added, meaning in pairs(Meanings.ADDED) do
     T.ok(Meanings.ROLE[meaning], added .. " is drawn as " .. tostring(meaning))
+    local group = Meanings.GROUP[added]
+    T.eq(compiled.group_specs[group].fg, Meanings.ROLE[meaning], group)
+    T.ok(not groups[group], group .. " is drawn for one meaning")
+    groups[group] = true
   end
+  T.eq(Meanings.GROUP.failure, "ColorRexFailure")
 end)

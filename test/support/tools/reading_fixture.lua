@@ -23,17 +23,10 @@ for _, path in ipairs(files) do
     for _, word in ipairs(words) do
       last = math.max(last, word.row + 1)
       local capture = word.capture and ("@" .. word.capture) or "-"
-      -- What the lexicon adds, read as the host reads it: the node's own text, with its
-      -- parent at hand; else the word as it appears in the line.
-      local function parent()
-        return word.parent
-      end
-      local added
-      if capture ~= "-" then
-        local bare = word.text:gsub("^:+(%a)", "%1"):gsub(":$", "")
-        added = (word.node_text and Meanings.refine(capture, word.node_text, lang, parent))
-          or Meanings.refine(capture, word.text, lang, parent) or Meanings.refine(capture, bare, lang, parent)
-      end
+      -- What the lexicon adds, read as the host reads it: each node under the word by its
+      -- own text and drawn capture. Never the word as the line spells it, which the host
+      -- never sees: Ruby's `:fast` would read as the key `fast`.
+      local added = capture ~= "-" and Captures.added(word.nodes, lang, Meanings.refine) or nil
       rows[word.row + 1] = rows[word.row + 1] or {}
       table.insert(rows[word.row + 1], ("{ %q, %q%s }"):format(word.text, capture, added and (", %q"):format(added) or ""))
     end

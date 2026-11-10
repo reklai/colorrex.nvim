@@ -69,6 +69,12 @@ class Log {
   }
 }
 
+function each(entries: readonly Entry[], visit: (entry: Entry) => void): void {
+  for (const entry of entries) {
+    visit(entry);
+  }
+}
+
 async function main(url: string): Promise<void> {
   const log = new Log();
   let attempts = 0;

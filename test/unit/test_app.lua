@@ -567,6 +567,31 @@ T.test("explain: under the cursor it skips what it does not define and reads @x.
   T.ok(text:match("links to Comment"), text)
 end)
 
+T.test("explain: a server's token with no opinion leaves the color to the grammar", function()
+  local app, host = start({ cursor_groups = { "@lsp.type.variable.lua", "@variable.lua" } })
+  app:load()
+  app:explain()
+  local text = host.messages[#host.messages].message
+  T.ok(text:match("^@variable\n"), text)
+  T.ok(not text:match("no color"), text)
+end)
+
+T.test("explain: what the lexicon drew is the color on screen", function()
+  -- The host lists it first: it sits above the grammar and every server's token.
+  local app, host = start({ cursor_groups = { "ColorRexFailure", "@constant.builtin.go" } })
+  app:load()
+  app:explain()
+  local text = host.messages[#host.messages].message
+  T.ok(text:match("^ColorRexFailure\n") and text:match("role failure"), text)
+end)
+
+T.test("explain: a group with no color is still named when nothing else is there", function()
+  local app, host = start({ cursor_groups = { "@lsp.type.variable.lua" } })
+  app:load()
+  app:explain()
+  T.ok(host.messages[#host.messages].message:match("sets no color of its own"))
+end)
+
 T.test("status: names the theme by its id and casting", function()
   local app, host = start()
   app:load()

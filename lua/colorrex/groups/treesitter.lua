@@ -19,10 +19,10 @@ return function(define)
   end
   -- What the lexicon adds, drawn by the host. Negation wears control's color, and
   -- bold, because it is the one character on the line that turns the condition around.
-  G.ColorRexFailure = meaning(Meanings.ADDED.failure)
-  G.ColorRexNegation = meaning(Meanings.ADDED.negation)
-  G.ColorRexNegation.bold = true
-  G.ColorRexKey = meaning(Meanings.ADDED.key)
+  for added, name in pairs(Meanings.ADDED) do
+    G[Meanings.GROUP[added]] = meaning(name)
+  end
+  G[Meanings.GROUP.negation].bold = true
 
   each(G, {
     "@keyword.coroutine", "@keyword.function", "@keyword.type", "@keyword.modifier",
