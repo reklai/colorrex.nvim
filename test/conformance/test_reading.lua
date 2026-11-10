@@ -7,6 +7,7 @@
 local Color = require("colorrex.color")
 local Compiler = require("colorrex.compiler")
 local Config = require("colorrex.config")
+local Meanings = require("colorrex.meanings")
 local T = require("harness")
 local Theme = require("colorrex.theme")
 
@@ -22,8 +23,13 @@ local OPTS = Config.resolve()
 -- now read as the fields they are, as `{ retries: 3 }` does in JavaScript, and in about
 -- one theme in five a field sits near a value's color. In return nothing but failure
 -- wears failure's color in any theme, where 278 had something else in it.
-local LOOK_ALIKE_LIMIT = 0.0098 -- neighbors that mean different things but look the same
-local LOOK_ALIKE_BY_SIDE = { dark = 0.0101, light = 0.0087 } -- each mode on its own, so neither hides in the other
+--
+-- Raised again, from 0.0098 and 0.0101/0.0087, when the samples came to be read as the
+-- host reads them. Ruby's `mode: :fast` had been read as two keys, though the host draws
+-- `:fast` as the value it is; with that one word read right the old limits fail on the
+-- same compiler, so nothing reads worse than it did.
+local LOOK_ALIKE_LIMIT = 0.0101 -- neighbors that mean different things but look the same
+local LOOK_ALIKE_BY_SIDE = { dark = 0.0104, light = 0.0090 } -- each mode on its own, so neither hides in the other
 
 local function corpus()
   local themes = {}
@@ -42,14 +48,11 @@ local function corpus()
   return themes
 end
 
--- What the lexicon adds, as the host draws it.
-local ADDED_GROUP = { failure = "ColorRexFailure", negation = "ColorRexNegation", key = "ColorRexKey" }
-
 --- The group colorrex defines for a capture, as Neovim finds it: @a.b.lang, then
 --- @a.b, then @a, following links. A meaning the lexicon added draws over it.
 local function look(compiled, capture, lang, added)
   if added then
-    local group = ADDED_GROUP[added]
+    local group = Meanings.GROUP[added] -- what the lexicon adds, as the host draws it
     local spec = compiled.group_specs[group]
     return compiled.groups[group].fg, spec, spec.fg
   end

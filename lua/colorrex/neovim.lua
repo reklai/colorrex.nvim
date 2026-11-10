@@ -7,8 +7,9 @@ local M = {}
 
 local LANDMARK_GROUP = "ColorRexLandmark"
 local LANDMARK_PRIORITY = 130 -- above Treesitter and LSP tokens, below diagnostics
-local MEANING_GROUPS = { failure = "ColorRexFailure", negation = "ColorRexNegation", key = "ColorRexKey" } -- what the lexicon adds
 local MEANING_PRIORITY = 126 -- above Treesitter (100) and LSP tokens (125), so `err` stays failure
+local CAPTURE_PRIORITY = 100 -- Treesitter's, unless a query sets its own
+local UNDRAWN = { spell = true, nospell = true, conceal = true } -- captures Neovim reads but never paints
 local MAX_WORD = 40 -- the lexicon never reads anything longer
 
 function M.new()
@@ -18,6 +19,7 @@ function M.new()
   -- older one detach the next time they fire, so switching colorschemes leaks nothing.
   local generation = 0
   local watcher
+  local drawn_at -- while decorating: the group the lexicon drew at a buffer position
 
   --- Whether a terminal is there to ask. Until VimEnter a query could race startup.
   function host.ui_ready()
@@ -146,7 +148,8 @@ function M.new()
   --- and nothing here ever starts a parse: it reads the trees the highlighter already has.
   ---
   --- spec: landmarks(root, top, bottom, line) -> marks, or nil;
-  ---       refine(capture, text, lang, parent) -> meaning|nil; can_refine(capture) -> boolean.
+  ---       refine(capture, text, lang, parent, previous) -> group|nil;
+  ---       can_refine(capture, lang) -> boolean.
   function host.decorate(spec)
     generation = generation + 1
     local mine = generation
@@ -159,7 +162,7 @@ function M.new()
         local ok, query = pcall(vim.treesitter.query.get, lang, "highlights")
         local useful = false
         for _, name in ipairs(ok and query and query.captures or {}) do
-          useful = useful or spec.can_refine("@" .. name)
+          useful = useful or spec.can_refine("@" .. name, lang)
         end
         queries[lang] = useful and query or false
       end
@@ -167,24 +170,56 @@ function M.new()
     end
 
     local broken = {} -- languages whose query failed here once; they lose only this
-    -- The lexicon asks for a node's parent only for the few words that need it, such
-    -- as `!`. One function, pointed at the node being read, so asking costs nothing.
-    local reading
+    -- The lexicon asks about a node's neighbors only for the few words that need it, such
+    -- as `!`. One function each, pointed at the node being read, so asking costs nothing.
+    local reading, reading_buffer
     local function parent_type()
       local parent = reading:parent()
       return parent and parent:type()
     end
+    local function previous_text()
+      local before = reading:prev_sibling()
+      if not before then
+        return nil
+      end
+      local start_row, start_col, end_row, end_col = before:range()
+      if start_row ~= end_row or end_col - start_col > MAX_WORD then
+        return nil -- longer than any word the lexicon knows
+      end
+      return vim.treesitter.get_node_text(before, reading_buffer)
+    end
+    --- The lexicon reads each word as it is drawn: by the one capture the highlighter
+    --- paints on its node, the highest priority and of those the last read. `ErrLog` in
+    --- `ErrLog("x")` is a variable to Go's query too, and drawn as the call it is.
     local function refine_row(tstree, query, lang, buffer, row, found)
-      for id, node in query:iter_captures(tstree:root(), buffer, row, row + 1) do
-        local capture = "@" .. query.captures[id]
-        if spec.can_refine(capture) then
+      local drawn, order = {}, {}
+      for id, node, metadata in query:iter_captures(tstree:root(), buffer, row, row + 1) do
+        local name = query.captures[id]
+        if name:sub(1, 1) ~= "_" and not UNDRAWN[name] then -- `@_name` is the query's own
           local start_row, start_col, end_row, end_col = node:range()
           if start_row == row and end_row == row and end_col - start_col <= MAX_WORD then
-            reading = node
-            local group = MEANING_GROUPS[spec.refine(capture, vim.treesitter.get_node_text(node, buffer), lang, parent_type)]
-            if group then
-              found[#found + 1] = { start_col, end_row, end_col, group, MEANING_PRIORITY }
+            local rank = tonumber(metadata.priority or (metadata[id] and metadata[id].priority)) or CAPTURE_PRIORITY
+            local key = node:id()
+            local held = drawn[key]
+            if not held then
+              order[#order + 1] = key
+              drawn[key] = { node = node, name = name, rank = rank }
+            elseif rank >= held.rank then
+              held.name, held.rank = name, rank
             end
+          end
+        end
+      end
+      reading_buffer = buffer
+      for _, key in ipairs(order) do
+        local held = drawn[key]
+        local capture = "@" .. held.name
+        if spec.can_refine(capture, lang) then
+          reading = held.node
+          local group = spec.refine(capture, vim.treesitter.get_node_text(held.node, buffer), lang, parent_type, previous_text)
+          if group then
+            local _, start_col, _, end_col = held.node:range()
+            found[#found + 1] = { start_col, row, end_col, group, MEANING_PRIORITY }
           end
         end
       end
@@ -326,6 +361,15 @@ function M.new()
       end
       return {}
     end
+    drawn_at = function(buffer, row, col)
+      local known = meanings[buffer]
+      for _, mark in ipairs(known and known.rows[row] or {}) do
+        if col >= mark[1] and col < mark[3] then
+          return mark[4]
+        end
+      end
+      return nil
+    end
 
     local landmarks, current, visible = {}, nil, {}
     local function draw(buffer, row, mark)
@@ -370,6 +414,7 @@ function M.new()
 
   function host.undecorate()
     generation = generation + 1
+    drawn_at = nil
     vim.api.nvim_set_decoration_provider(vim.api.nvim_create_namespace(Config.NAME .. ".chunks"), {})
   end
 
@@ -404,10 +449,16 @@ function M.new()
     end
   end
 
-  --- Every highlight on the cursor, most specific first.
+  --- Every highlight on the cursor, most specific first. What the lexicon drew comes
+  --- first: it sits above every server's token, and Neovim's own inspector cannot see it.
   function host.groups_under_cursor()
     local info = vim.inspect_pos()
     local names = {}
+    local cursor = vim.api.nvim_win_get_cursor(0)
+    local added = drawn_at and drawn_at(vim.api.nvim_get_current_buf(), cursor[1] - 1, cursor[2])
+    if added then
+      names[1] = added
+    end
     for _, list in ipairs({ info.semantic_tokens, info.treesitter, info.syntax }) do
       for index = #list, 1, -1 do
         local item = list[index]

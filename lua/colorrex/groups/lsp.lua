@@ -7,7 +7,7 @@
 local Meanings = require("colorrex.meanings")
 
 return function(define)
-  local each, meaning = define.each, define.meaning
+  local each, link, meaning = define.each, define.link, define.meaning
   local G = {}
 
   each(G, { "LspReferenceText", "LspReferenceRead", "LspReferenceTarget" }, { bg = "reference" })
@@ -22,6 +22,10 @@ return function(define)
   end
   for _, token in ipairs(Meanings.SILENT_TOKENS) do
     G["@lsp.type." .. token] = {}
+  end
+  -- Neovim looks for @lsp.type.comment.c before @lsp.type.comment.
+  for lang in pairs(Meanings.INACTIVE.langs) do
+    G["@lsp.type." .. Meanings.INACTIVE.token .. "." .. lang] = link("Comment")
   end
   -- What a server knows about a word, beyond what it is, is drawn as style and never as
   -- color, so the word still reads as what it is.

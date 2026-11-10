@@ -79,10 +79,8 @@ local function meanings(lang)
   local out = {}
   for _, word in ipairs(words) do
     if out[word.text] == nil and word.capture then
-      local capture = "@" .. word.capture
-      local bare = word.text:gsub("^:+(%a)", "%1"):gsub(":$", "")
-      local refined = Meanings.refine(capture, word.text, lang) or Meanings.refine(capture, bare, lang)
-      out[word.text] = refined or Meanings.of_capture(capture) or false
+      local refined = Captures.added(word.nodes, lang, Meanings.refine)
+      out[word.text] = refined or Meanings.of_capture("@" .. word.capture) or false
     end
   end
   return out
@@ -155,32 +153,28 @@ local UNLESS = {
 
 for lang, case in pairs(NEGATION) do
   T.test("meanings: " .. lang .. " reads `!` and `not` as negation only where they negate", function()
-    local ok, query = pcall(vim.treesitter.query.get, lang, "highlights")
-    if not ok or not query or not pcall(vim.treesitter.language.add, lang) then
+    local text, want = case[1], case[2]
+    local nodes = Captures.nodes(text, lang)
+    if not nodes then
       T.skip("no " .. lang .. " parser and highlights query here")
     end
-    local text, want = case[1], case[2]
-    local tree = vim.treesitter.get_string_parser(text, lang):parse()[1]
-    -- One verdict per token, as the host draws it: any capture of it that refines wins.
+    -- One verdict per token, as the host draws it: what its nodes, each read by the
+    -- capture drawn on it, add.
     local found, order = {}, {}
-    for id, node in query:iter_captures(tree:root(), text, 0, -1) do
-      local word = vim.treesitter.get_node_text(node, text)
-      if word == "!" or word == "not" then
-        local key = table.concat({ node:range() }, ":")
+    for _, node in ipairs(nodes) do
+      if node.node_text == "!" or node.node_text == "not" then
+        local key = node.row * 1000 + node.first
         if found[key] == nil then
-          order[#order + 1] = { key = key, at = select(2, node:start()) + select(1, node:start()) * 1000 }
-          found[key] = false
+          order[#order + 1] = key
+          found[key] = {}
         end
-        local meaning = Meanings.refine("@" .. query.captures[id], word, lang, function()
-          return node:parent() and node:parent():type()
-        end)
-        found[key] = found[key] or meaning or false
+        table.insert(found[key], node)
       end
     end
-    table.sort(order, function(a, b) return a.at < b.at end)
+    table.sort(order)
     local got = {}
-    for index, item in ipairs(order) do
-      got[index] = found[item.key]
+    for index, key in ipairs(order) do
+      got[index] = Captures.added(found[key], lang, Meanings.refine) or false
     end
     T.eq(vim.inspect(got), vim.inspect(want))
   end)
@@ -188,15 +182,14 @@ end
 
 for lang, text in pairs(UNLESS) do
   T.test("meanings: " .. lang .. " reads `unless` as negation", function()
-    local ok, query = pcall(vim.treesitter.query.get, lang, "highlights")
-    if not ok or not query or not pcall(vim.treesitter.language.add, lang) then
+    local nodes = Captures.nodes(text, lang)
+    if not nodes then
       T.skip("no " .. lang .. " parser and highlights query here")
     end
-    local tree = vim.treesitter.get_string_parser(text, lang):parse()[1]
     local found = false
-    for id, node in query:iter_captures(tree:root(), text, 0, -1) do
-      if vim.treesitter.get_node_text(node, text) == "unless" then
-        found = found or Meanings.refine("@" .. query.captures[id], "unless", lang) == "negation"
+    for _, node in ipairs(nodes) do
+      if node.node_text == "unless" then
+        found = found or Captures.added({ node }, lang, Meanings.refine) == "negation"
       end
     end
     T.ok(found, "unless")

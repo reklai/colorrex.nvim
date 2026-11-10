@@ -57,6 +57,12 @@ local function load_all(path)
   return M.load(path)
 end
 
+local function each(entries, visit)
+  for _, entry in ipairs(entries) do
+    visit(entry)
+  end
+end
+
 local function main(...)
   local path = select(1, ...) or os.getenv("LOG") or "app.log"
   local entries, err
@@ -71,11 +77,11 @@ local function main(...)
   end
   assert(entries, err)
   local counts = {}
-  for _, entry in ipairs(entries) do
+  each(entries, function(entry)
     if entry:is_serious() then
       counts[entry.level] = (counts[entry.level] or 0) + 1
     end
-  end
+  end)
   for level, count in pairs(counts) do
     io.write(level, "\t", count, "/", #entries, "\n")
   end

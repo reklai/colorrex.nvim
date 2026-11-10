@@ -65,6 +65,16 @@ static struct entry *load(const char *path, size_t *count)
 __attribute__((deprecated("use load"))) static struct entry *load_all(const char *path, size_t *count);
 static struct entry *load_all(const char *path, size_t *count) { return load(path, count); }
 
+static void each(struct entry *entries, size_t count, void (*visit)(const struct entry *))
+{
+    for (size_t i = 0; i < count; i++)
+        visit(&entries[i]);
+}
+
+#if 0
+static void trace(const struct entry *entry) { fprintf(stderr, "%s\n", entry->message); }
+#endif
+
 int main(int argc, char **argv)
 {
     const char *path = argc > 1 ? argv[1] : "app.log";

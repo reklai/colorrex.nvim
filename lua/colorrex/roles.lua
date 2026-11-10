@@ -56,9 +56,11 @@ M.SECONDARY = {
 }
 
 -- Roles that keep their slot whatever the casting. With the two lists above these
--- put all twelve chromatic slots on screen, so a change to any of them shows.
+-- put all twelve chromatic slots on screen, so a change to any of them shows. Errors
+-- the editor reports take bright red, and leave red to failure: `nil` could fail, and
+-- an error under it already has.
 M.PALETTE = {
-  { name = "error", slots = { 1, 9 } },
+  { name = "error", slots = { 9, 1 } },
   { name = "warn", slots = { 11, 3 } },
   { name = "ok", slots = { 10, 2 } },
   { name = "info", slots = { 14, 6 } },
@@ -414,18 +416,27 @@ end
 --- What comes from elsewhere, imports and macros, is held apart from failure, which
 --- nothing else in code may wear. A voice that gives failure magenta would leave it on
 --- bright magenta beside it. It moves the least it can: to a color apart from every
---- syntax role if there is one, else apart from failure alone. A palette whose one color
---- is failure's leaves it the foreground.
+--- syntax role, from fields and values, and from errors the editor reports, if there is
+--- one; else apart from failure alone. A palette whose one color is failure's leaves it
+--- the foreground.
 local function keep_boundary_apart(theme, roles, floor, notes)
   if Color.distance(roles.preproc.hex, roles.failure.hex) >= Color.DISTINCT then
     return
+  end
+  local function clear_of(hex)
+    for _, name in ipairs({ "property", "number", "error" }) do
+      if Color.distance(hex, roles[name].hex) < Color.DISTINCT then
+        return false
+      end
+    end
+    return nearest_other(roles, "preproc", hex) >= Color.DISTINCT
   end
   local best, nearest, clear = nil, math.huge, false
   for _, slot in ipairs(POOL) do
     if chromatic(theme, slot) then
       local option = from_slot(theme, slot, floor)
       if Color.distance(option.hex, roles.failure.hex) >= Color.DISTINCT then
-        local apart = nearest_other(roles, "preproc", option.hex) >= Color.DISTINCT
+        local apart = clear_of(option.hex)
         local move = Color.distance(option.hex, roles.preproc.hex)
         if (apart and not clear) or (apart == clear and move < nearest) then
           best, nearest, clear = option, move, apart
@@ -437,6 +448,21 @@ local function keep_boundary_apart(theme, roles, floor, notes)
     roles.preproc.slot or -1, best.slot) or "failure has the only color, so imports and macros read as plain text"
   notes[#notes + 1] = { code = "practical.reassigned", message = message }
   roles.preproc = best or { hex = theme.fg, source = "fg" }
+end
+
+--- A help file's links take red when nothing else shows it. Errors took bright red, and a
+--- voice that moves failure off red, or a red too like plain text to be failure, would
+--- leave it with nothing on screen.
+local function keep_red_shown(theme, roles, floor)
+  if roles.special.slot ~= 9 or roles.error.slot ~= 9 or not chromatic(theme, 1) then
+    return
+  end
+  for _, role in pairs(roles) do
+    if role.slot == 1 then
+      return
+    end
+  end
+  roles.special = from_slot(theme, 1, floor)
 end
 
 --- Give syntax roles the palette could not separate a different weight or slant.
@@ -683,8 +709,12 @@ function M.solve(theme, opts)
   roles.property = property_role(theme, roles, floor)
   roles.number = value_role(theme, roles, floor)
   roles.comment = comment_role(theme, floor, notes)
+  for _, role in ipairs(M.PALETTE) do -- they keep their slot, and code keeps clear of errors
+    roles[role.name] = from_slot(theme, natural_slot(theme, role.slots), floor)
+  end
   local failure_needs_style = keep_failure_apart(theme, roles, floor, notes)
   keep_boundary_apart(theme, roles, floor, notes)
+  keep_red_shown(theme, roles, floor)
   local styles = assign_styles(roles, notes, { failure = failure_needs_style })
   styles.number = styles.string
   for _, name in ipairs(Casting.ROLES) do
@@ -700,7 +730,6 @@ function M.solve(theme, opts)
   roles.predicted = predicted_role(roles, bg)
 
   for _, role in ipairs(M.PALETTE) do
-    roles[role.name] = from_slot(theme, natural_slot(theme, role.slots), floor)
     note_lift(notes, role.name, roles[role.name], bg)
   end
 

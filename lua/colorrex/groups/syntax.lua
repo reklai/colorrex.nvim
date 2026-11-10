@@ -1,6 +1,6 @@
 -- The classic syntax groups, which syntax files and many plugins link to.
 return function(define)
-  local link, syn, each = define.link, define.syn, define.each
+  local syn, each = define.syn, define.each
   local G = {}
 
   G.Comment = { fg = "comment", italic = true }

@@ -197,8 +197,9 @@ T.test("voice: a theme's color stays off screen only if it would look like one t
   T.eq(#dead, 0, table.concat(dead, ", "):sub(1, 400))
 end)
 
---- How many code roles visibly differ between two compiled colorschemes.
-local CODE_ROLES = { "keyword", "func", "string", "type", "failure", "number", "operator", "comment", "preproc", "special" }
+--- How many code roles visibly differ between two compiled colorschemes. `special` is not
+--- one: it marks a help file's links, and no code wears it.
+local CODE_ROLES = { "keyword", "func", "string", "type", "failure", "number", "operator", "comment", "preproc" }
 
 local function role_colors(colorscheme)
   local out = {}
@@ -321,6 +322,75 @@ T.test("practical: types and numbers do not share a hue", function()
   T.ok(twins <= TWIN_LIMIT, ("%d themes"):format(twins))
 end)
 
+T.test("practical: imports keep clear of errors, fields and values when a color allows it", function()
+  -- Where imports had to leave failure's color, they take one nothing else wears if the
+  -- palette has one, never the error under the code or the field beside them.
+  local Color = require("colorrex.color")
+  local Roles = require("colorrex.roles")
+  local themes = corpus()
+  if next(themes) == nil then
+    T.skip("no theme corpus at " .. CORPUS)
+  end
+  local SYNTAX = { "keyword", "func", "string", "type", "failure", "operator" }
+  local crowded = {}
+  for name, theme in pairs(themes) do
+    local compiled = Compiler.compile(theme, OPTS)
+    local roles = compiled.roles
+    local function clear(hex)
+      for _, other in ipairs({ "error", "property", "number" }) do
+        if Color.distance(hex, roles[other].hex) < Color.DISTINCT then
+          return false
+        end
+      end
+      for _, other in ipairs(SYNTAX) do
+        if Color.distance(hex, roles[other].hex) < Color.DISTINCT then
+          return false
+        end
+      end
+      return true
+    end
+    local moved = false
+    for _, note in ipairs(compiled.notes) do
+      moved = moved or note.message:match("imports and macros took") ~= nil
+    end
+    if moved and not clear(roles.preproc.hex) then
+      for _, slot in ipairs({ 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14 }) do
+        local source = compiled.filled.ansi[slot]
+        if Color.chroma(source) >= Roles.MIN_CHROMA and clear(Color.lift(source, compiled.filled.bg, OPTS.contrast)) then
+          crowded[#crowded + 1] = ("%s (ansi %d was free)"):format(name, slot)
+          break
+        end
+      end
+    end
+  end
+  T.eq(#crowded, 0, table.concat(crowded, ", "):sub(1, 400))
+end)
+
+T.test("practical: errors the editor reports take bright red, and leave red to failure", function()
+  -- `nil` could fail; an error under it already has. Only a theme whose bright red is a
+  -- grey keeps both on red.
+  local Color = require("colorrex.color")
+  local Roles = require("colorrex.roles")
+  local themes = corpus()
+  if next(themes) == nil then
+    T.skip("no theme corpus at " .. CORPUS)
+  end
+  local astray, apart, red = {}, 0, 0
+  for name, theme in pairs(themes) do
+    local roles = Compiler.compile(theme, OPTS).roles
+    local bright = Color.chroma(theme.ansi[9]) >= Roles.MIN_CHROMA
+    if bright and roles.error.slot ~= 9 then
+      astray[#astray + 1] = name
+    end
+    if roles.failure.slot == 1 then
+      red = red + 1
+      apart = apart + (Color.distance(roles.failure.hex, roles.error.hex) >= Color.DISTINCT and 1 or 0)
+    end
+  end
+  print(("  failure on red: %d themes, %d of them with errors in a color apart"):format(red, apart))
+  T.eq(#astray, 0, table.concat(astray, ", "):sub(1, 400))
+end)
+
 T.test("practical: in a diff, the changed words stand clearly above the changed line", function()
   local Color = require("colorrex.color")
   local themes = corpus()
@@ -377,6 +447,7 @@ T.test("identity: themes that read alike really do share their colors", function
     for _, role in ipairs(Roles.PALETTE) do -- errors and warnings show a theme's colors too
       colors[#colors + 1] = colorscheme.roles[role.name].hex
     end
+    colors[#colors + 1] = colorscheme.roles.special.hex -- and so do a help file's links
     list[#list + 1] = { name = name, signature = colorscheme.signature, colors = colors, filled = colorscheme.filled }
   end
   local hidden = 0

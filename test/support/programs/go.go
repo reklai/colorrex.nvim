@@ -86,6 +86,15 @@ func load(path string) ([]Entry, error) {
 	return entries, nil
 }
 
+// ErrLog reports an error the way every caller here does.
+func ErrLog(err error) { fmt.Fprintln(os.Stderr, "logscan:", err) }
+
+func each(entries []Entry, visit func(Entry)) {
+	for _, e := range entries {
+		visit(e)
+	}
+}
+
 func main() {
 	var entries []Entry
 	var err error
@@ -99,11 +108,10 @@ func main() {
 		if errors.As(err, &perr) {
 			fmt.Fprintln(os.Stderr, "parse failed at line", strconv.Itoa(perr.Line))
 		}
+		ErrLog(err)
 		panic(err)
 	}
 	counts := map[Level]int{}
-	for _, e := range entries {
-		counts[e.Level]++
-	}
+	each(entries, func(e Entry) { counts[e.Level]++ })
 	fmt.Printf("%v\t%d\n", counts, len(entries))
 }

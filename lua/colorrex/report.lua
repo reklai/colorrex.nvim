@@ -52,10 +52,28 @@ function M.explain(colorscheme, candidates)
     return "nothing under the cursor; try :ColorRex explain Comment", "warn"
   end
   local specs = colorscheme.group_specs
-  local name
-  for _, candidate in ipairs(candidates) do
-    name = name or defined(specs, candidate)
+  --- Whether a group, once its links are followed, gives text a color.
+  local function colors(group)
+    local spec = specs[group]
+    for _ = 1, 10 do
+      if not (spec and spec.link) then
+        break
+      end
+      spec = specs[spec.link]
+    end
+    return spec ~= nil and (spec.fg or spec.bg or spec.sp) ~= nil
   end
+  -- A group that colors nothing, such as a server's token with no opinion, leaves the
+  -- color to the one beneath it. If none colors, the first is still the answer.
+  local name, first
+  for _, candidate in ipairs(candidates) do
+    local found = defined(specs, candidate)
+    first = first or found
+    if found and not name and colors(found) then
+      name = found
+    end
+  end
+  name = name or first
   if not name then
     return ("%s is not a group colorrex defines"):format(candidates[1]), "warn"
   end

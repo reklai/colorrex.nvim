@@ -77,9 +77,27 @@ end
 
 --- A token's capture, decided as captures.lua decides a word's: at its first word
 --- character, or its first character when it is all punctuation, like lua-ls's `:`.
+--- Also the nodes there, each with its own drawn capture, which is what the lexicon reads.
 local function capture_of(paint, text, row, col)
-  local held = paint[row * 100000 + col + (text:find("[%w_]") or 1) - 1]
-  return held and ("@" .. held.capture) or "-"
+  local key = row * 100000 + col + (text:find("[%w_]") or 1) - 1
+  local held = paint[key]
+  return held and ("@" .. held.capture) or "-", paint.nodes[key] or {}
+end
+
+--- The nodes as Lua source: what the host reads of each, the text and its neighbors.
+local function nodes_source(nodes)
+  local out = {}
+  for _, node in ipairs(nodes) do
+    local fields = { ("capture = %q"):format(node.capture), ("node_text = %q"):format(node.node_text) }
+    if node.parent then
+      fields[#fields + 1] = ("parent = %q"):format(node.parent)
+    end
+    if node.previous then
+      fields[#fields + 1] = ("previous = %q"):format(node.previous)
+    end
+    out[#out + 1] = "{ " .. table.concat(fields, ", ") .. " }"
+  end
+  return "{ " .. table.concat(out, ", ") .. " }"
 end
 
 local function executable(bin)
@@ -223,9 +241,10 @@ for _, path in ipairs(files) do
       out[#out + 1] = "    words = {"
       for _, token in ipairs(tokens) do
         local modifiers = vim.tbl_map(function(m) return ("%q"):format(m) end, token.modifiers)
-        out[#out + 1] = ("      { %q, %q, %q, %s, %d, %d },"):format(token.text,
-          capture_of(paint, token.text, token.row, token.col), token.type,
-          #modifiers > 0 and ("{ " .. table.concat(modifiers, ", ") .. " }") or "{}", token.row, token.col)
+        local capture, nodes = capture_of(paint, token.text, token.row, token.col)
+        out[#out + 1] = ("      { %q, %q, %q, %s, %d, %d, nodes = %s },"):format(token.text, capture, token.type,
+          #modifiers > 0 and ("{ " .. table.concat(modifiers, ", ") .. " }") or "{}", token.row, token.col,
+          nodes_source(nodes))
       end
       out[#out + 1] = "    },"
       out[#out + 1] = "  },"
