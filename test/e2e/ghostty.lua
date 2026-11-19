@@ -57,29 +57,31 @@ end
 local windows = {}
 local count = 0
 
-local function open(theme, extra, manual)
+--- `env` adds to what the window's Neovim is started with, such as a setup to load.
+local function open(theme, extra, manual, env)
   count = count + 1
   local dir = ("%s/%d"):format(work, count)
   vim.fn.mkdir(dir, "p")
   local window = { conf = dir .. "/ghostty.conf", socket = dir .. "/nvim.sock", extra = extra }
   write(window.conf, config_text(theme, extra))
+  local started_with = {
+    HOME = vim.env.HOME,
+    PATH = vim.env.PATH,
+    WAYLAND_DISPLAY = vim.env.WAYLAND_DISPLAY,
+    DISPLAY = vim.env.DISPLAY,
+    XDG_RUNTIME_DIR = vim.env.XDG_RUNTIME_DIR,
+    DBUS_SESSION_BUS_ADDRESS = vim.env.DBUS_SESSION_BUS_ADDRESS,
+    XDG_STATE_HOME = dir .. "/state",
+    COLORREX_ROOT = root,
+    COLORREX_E2E_MANUAL = manual and "1" or nil,
+  }
+  for key, value in pairs(env or {}) do
+    started_with[key] = value
+  end
   window.process = vim.system({
     "ghostty", "--config-default-files=false", "--config-file=" .. window.conf, "-e",
     vim.v.progpath, "-n", "--listen", window.socket, "-u", root .. "/test/e2e/init.lua", root .. "/test/e2e/sample.lua",
-  }, {
-    clear_env = true,
-    env = {
-      HOME = vim.env.HOME,
-      PATH = vim.env.PATH,
-      WAYLAND_DISPLAY = vim.env.WAYLAND_DISPLAY,
-      DISPLAY = vim.env.DISPLAY,
-      XDG_RUNTIME_DIR = vim.env.XDG_RUNTIME_DIR,
-      DBUS_SESSION_BUS_ADDRESS = vim.env.DBUS_SESSION_BUS_ADDRESS,
-      XDG_STATE_HOME = dir .. "/state",
-      COLORREX_ROOT = root,
-      COLORREX_E2E_MANUAL = manual and "1" or nil,
-    },
-  })
+  }, { clear_env = true, env = started_with })
   windows[#windows + 1] = window
   assert(vim.wait(8000, function() return vim.uv.fs_stat(window.socket) ~= nil end, 20), "Neovim never started")
   window.channel = vim.fn.sockconnect("pipe", window.socket, { rpc = true })
@@ -197,7 +199,142 @@ local function suite()
   close(manual)
 end
 
-local ok, err = xpcall(suite, debug.traceback)
+-- A setup written in roles, with real plugins where a plugin manager has left some.
+-- Ghostty reports every reload, so all of it has to follow with no key pressed.
+local PLUGINS = vim.env.COLORREX_PLUGINS or vim.fs.joinpath(vim.fn.stdpath("data"), "lazy")
+
+local WRITTEN_IN_ROLES = [=[
+  local function hl(name, key)
+    local value = vim.api.nvim_get_hl(0, { name = name, link = false })[key]
+    return value and ("#%06x"):format(value) or ""
+  end
+  local roles = require("colorrex").roles()
+  local said, notify = {}, vim.notify
+  vim.notify = function(message) said[#said + 1] = message end
+  pcall(vim.cmd, "ColorRex check")
+  vim.notify = notify
+  local own = {} -- the theme's colors: every role's, and the sixteen it came with
+  for _, hex in pairs(roles) do
+    own[hex] = true
+  end
+  for slot = 0, 15 do
+    own[vim.g["terminal_color_" .. slot] or ""] = true
+  end
+  local icons, astray = 0, 0
+  for name, spec in pairs(vim.api.nvim_get_hl(0, {})) do
+    if name:find("DevIcon", 1, true) and spec.fg then
+      icons = icons + 1
+      astray = astray + (own[("#%06x"):format(spec.fg)] and 0 or 1)
+    end
+  end
+  return {
+    base = roles.base, accent = roles.accent, on_accent = roles.on_accent, term1 = vim.g.terminal_color_1 or "",
+    role_fg = hl("E2ERole", "fg"), role_bg = hl("E2ERole", "bg"), group_fg = hl("E2EGroup", "fg"),
+    group_bg = hl("E2EGroup", "bg"), normal_bg = hl("Normal", "bg"), events = vim.g.e2e_role_events or 0,
+    icons = icons, astray = astray, lua_icon = hl("DevIconLua", "fg"), check = table.concat(said, "\n"),
+    plugins = vim.g.e2e_plugins or {}, plugin_errors = vim.g.e2e_plugin_errors or {},
+  }
+]=]
+
+local function roles_suite()
+  local window = open(THEMES.dracula, nil, false, { COLORREX_E2E_ROLES = "1", COLORREX_E2E_PLUGINS = PLUGINS })
+  local function written(channel)
+    return vim.rpcrequest(channel or window.channel, "nvim_exec_lua", WRITTEN_IN_ROLES, {})
+  end
+  local function strays_in(text)
+    return text:match("%d+ highlights? from elsewhere.*") or "clean"
+  end
+  --- Whether everything a setup wrote in roles shows `theme`, and no icon is left out.
+  local function follows(theme)
+    return function(now)
+      return now.base == theme.bg and now.term1 == theme.ansi[2] and now.role_bg == theme.bg
+        and now.role_fg == now.accent and now.group_bg == now.accent and now.group_fg == now.on_accent
+        and now.astray == 0
+    end
+  end
+  local function settled(test, ms)
+    local last
+    vim.wait(ms or 3000, function()
+      last = written()
+      return test(last)
+    end, 40)
+    last.check = strays_in(last.check)
+    return test(last), vim.inspect(last)
+  end
+
+  check("roles: at launch, a group in `groups` and one set from roles() wear Ghostty's theme",
+    settled(follows(THEMES.dracula)))
+  local now = written()
+  check("roles: the accent is the cursor color, and base the background though Normal has none",
+    now.accent == THEMES.dracula.cursor and now.base == THEMES.dracula.bg and now.normal_bg == "", vim.inspect(now.accent))
+  check("roles: the plugins loaded without an error", #now.plugin_errors == 0, vim.inspect(now.plugin_errors))
+
+  for _, step in ipairs({
+    { "dark to dark", THEMES.gruvbox },
+    { "dark to light", THEMES.onelight },
+    { "light to dark", THEMES.dracula },
+    { "same background, new palette", THEMES.same_background },
+  }) do
+    reload(window, step[2])
+    check("roles: reload, no key pressed: " .. step[1], settled(follows(step[2])))
+  end
+
+  local before = written().events
+  for _, name in ipairs({ "dracula", "onelight", "gruvbox", "onelight", "dracula_tint", "onelight", "gruvbox", "dracula" }) do
+    reload(window, THEMES[name])
+    vim.wait(25, function() return false end)
+  end
+  check("roles: a storm of eight reloads, dark and light, ends with everything on the last theme",
+    settled(follows(THEMES.dracula)))
+  check("roles: and the ColorScheme a setup listens for ran through it", written().events > before)
+
+  now = written()
+  check("check: nothing on Ghostty's screen is left in a color that is not the theme's",
+    now.check:find("every highlight on screen wears this theme's colors", 1, true) ~= nil, strays_in(now.check))
+  vim.rpcrequest(window.channel, "nvim_command", "hi E2EStray guifg=#123456")
+  now = written()
+  check("check: a color from nowhere is found, with the role nearest it",
+    now.check:find("E2EStray  fg #123456 (nearest role: ", 1, true) ~= nil, strays_in(now.check))
+  vim.rpcrequest(window.channel, "nvim_command", "hi clear E2EStray")
+
+  if not vim.uv.fs_stat(vim.fs.joinpath(PLUGINS, "nvim-web-devicons")) then
+    print("skip  icons: nvim-web-devicons is not installed in " .. PLUGINS)
+    close(window)
+    return
+  end
+  check("icons: the plugin's hundreds of icons are all the theme's",
+    now.icons > 100 and now.astray == 0 and now.lua_icon ~= "#51a0cf", vim.inspect({ now.icons, now.astray, now.lua_icon }))
+  reload(window, THEMES.onelight)
+  check("icons: and stay so through a dark to light reload, when the plugin puts its own back",
+    settled(function(state)
+      return follows(THEMES.onelight)(state) and state.icons > 100
+    end))
+  close(window)
+
+  local fixed = open(THEMES.dracula, nil, false,
+    { COLORREX_E2E_ROLES = "1", COLORREX_E2E_PLUGINS = PLUGINS, COLORREX_E2E_ICONS = "off" })
+  local shipped
+  vim.wait(3000, function()
+    shipped = written(fixed.channel)
+    return shipped.base == THEMES.dracula.bg and shipped.icons > 100
+  end, 40)
+  check("icons: off leaves them as the plugin shipped them", shipped.lua_icon == "#51a0cf" and shipped.astray > 100,
+    vim.inspect({ shipped.lua_icon, shipped.astray }))
+  check("icons: and check counts them as one family", shipped.check:find("DevIcon%* %(%d+ groups%)") ~= nil,
+    strays_in(shipped.check))
+  close(fixed)
+end
+
+-- COLORREX_E2E_ONLY names one part to run alone, such as `roles`.
+local ok, err = xpcall(function()
+  local only = vim.env.COLORREX_E2E_ONLY
+  if not only or only == "lifecycle" then
+    suite()
+  end
+  if not only or only == "roles" then
+    roles_suite()
+  end
+end, debug.traceback)
 for _, window in ipairs(windows) do
   close(window)
 end

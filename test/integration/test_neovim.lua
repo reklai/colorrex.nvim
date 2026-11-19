@@ -390,7 +390,7 @@ T.test("chunks: drawing and stopping on the real host raises nothing", function(
   vim.bo[buffer].filetype = "lua"
   vim.treesitter.start(buffer, "lua")
   vim.api.nvim_set_current_buf(buffer)
-  host.decorate(require("colorrex.chunks").landmarks)
+  host.decorate({ landmarks = require("colorrex.chunks").landmarks })
   vim.cmd.redraw({ bang = true })
   host.undecorate()
   vim.cmd.redraw({ bang = true })

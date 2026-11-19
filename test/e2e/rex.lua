@@ -533,11 +533,198 @@ local function speed_suite()
   os.remove(listen)
 end
 
+-- A setup written in roles: a group in `groups`, a group set by hand from roles() on
+-- every ColorScheme, and real plugins where a plugin manager has left some. All of it
+-- has to follow the terminal as fast as the terminal changes, with no key pressed.
+local PLUGINS = vim.env.COLORREX_PLUGINS or vim.fs.joinpath(vim.fn.stdpath("data"), "lazy")
+local ICON_PLUGIN = vim.fs.joinpath(PLUGINS, "nvim-web-devicons")
+
+local function roles_suite()
+  local raw = require("themes")
+  local function setup_tab(name, extra)
+    local fresh = vim.fn.tempname() -- nothing saved: what it shows, it heard
+    vim.fn.mkdir(fresh, "p")
+    return nvim_tab(name, "0.3", fresh, "COLORREX_E2E_ROLES=1 COLORREX_E2E_PLUGINS=" .. PLUGINS .. " " .. (extra or ""))
+  end
+  --- Whether everything a setup wrote in roles is showing `name`'s colors.
+  local function follows(state, name)
+    local want = raw[name]
+    return state.bg == want.bg and state.roles.base == want.bg and state.role_bg == want.bg
+      and state.role_fg == state.roles.accent and state.group_bg == state.roles.accent
+      and state.group_fg == state.roles.on_accent and state.terminal1 == want.ansi[2]
+  end
+  local function brief(state)
+    return vim.inspect({ bg = state.bg, base = state.roles.base, role_fg = state.role_fg, role_bg = state.role_bg,
+      accent = state.roles.accent, group_bg = state.group_bg, group_fg = state.group_fg, red = state.terminal1 })
+  end
+  local function clean(state)
+    return state.check:find("every highlight on screen wears this theme's colors", 1, true) ~= nil
+  end
+  local function stray_report(state)
+    local at = state.check:find("%d+ highlights? from elsewhere")
+    return at and state.check:sub(at) or state.check
+  end
+
+  local tab = setup_tab("roles")
+  wait(1500)
+  theme(tab, "dracula")
+  send(tab, "gS")
+  wait(500)
+  local state = dump(tab)
+  check("roles: a group in `groups` and one set from roles() both wear the theme", follows(state, "dracula"), brief(state))
+  check("roles: the accent is the theme's cursor, and base its background though Normal has none",
+    state.roles.accent == "#ff79c6" and state.roles.base == "#282a36" and state.normal_bg == vim.NIL, brief(state))
+
+  -- On screen, not only in the highlight table: the word is drawn in the group's colors.
+  send(tab, "\027:call matchadd('E2EGroup', 'greet')\r")
+  wait(300)
+  local function fills(style, hex)
+    local r, g, b = hex:match("#(%x%x)(%x%x)(%x%x)")
+    local want = ("48;2;%d;%d;%d"):format(tonumber(r, 16), tonumber(g, 16), tonumber(b, 16))
+    return style ~= nil and (";" .. style .. ";"):find(";" .. want .. ";", 1, true) ~= nil
+  end
+  local style = style_before(tab, "greet")
+  check("roles: a group in `groups` is drawn in the terminal in its roles' colors",
+    draws(style, state.group_fg) and fills(style, state.group_bg), vim.inspect({ style, state.group_fg, state.group_bg }))
+
+  theme(tab, "gruvbox")
+  send(tab, "gS")
+  wait(500)
+  state = dump(tab)
+  style = style_before(tab, "greet")
+  check("roles: a new theme moves both groups with it", follows(state, "gruvbox") and state.roles.accent == "#fe8019",
+    brief(state))
+  check("roles: and the terminal draws the new colors",
+    draws(style, state.group_fg) and fills(style, state.group_bg), vim.inspect({ style, state.group_fg, state.group_bg }))
+
+  -- A picker, held down: focus is elsewhere and themes go by faster than anyone reads.
+  -- The watch starts when focus leaves, so the block has to have had it.
+  local elsewhere = vim.json.decode(rex("window", "new", "-s", session, "roles-focus", "--focus=false", "--json",
+    "--shell=none", "--", "/bin/sleep", "600"))
+  focus(tab)
+  wait(400)
+  rex("window", "focus", "-s", session, elsewhere.window_id)
+  wait(300)
+  local before = state.role_events
+  local order = { "dracula", "gruvbox", "dracula_tint", "same_background", "gruvbox", "dracula", "gruvbox", "dracula_tint" }
+  for _, name in ipairs(order) do
+    theme(tab, name) -- no wait at all: as fast as the terminal takes them
+  end
+  wait(400)
+  state = dump(tab)
+  check("rapid: after eight dark themes in a row, unfocused, everything shows the last one",
+    follows(state, order[#order]), brief(state))
+  check("rapid: and each repaint ran the ColorScheme a setup listens for", state.role_events > before,
+    ("%d events for %d themes"):format(state.role_events - before, #order))
+
+  local every = true
+  local detail
+  for _, name in ipairs({ "dracula", "same_background", "dracula_tint", "gruvbox", "dracula" }) do
+    theme(tab, name)
+    wait(200)
+    state = dump(tab)
+    if not follows(state, name) then
+      every, detail = false, name .. ": " .. brief(state)
+    end
+  end
+  check("rapid: at picker speed, every theme along the way is shown whole, with no key pressed", every, detail)
+
+  -- Dark and light, back and forth. Each flip also sets 'background', which reloads the
+  -- colorscheme a second time and makes plugins repaint their own groups.
+  order = { "onelight", "dracula", "onelight", "gruvbox", "onelight", "dracula_tint", "onelight" }
+  for _, name in ipairs(order) do
+    theme(tab, name)
+  end
+  wait(700)
+  state = dump(tab)
+  check("rapid: after seven dark and light flips in a row, everything shows the last one",
+    follows(state, "onelight") and state.background == "light", brief(state) .. " " .. tostring(state.background))
+  every, detail = true, nil
+  for _, name in ipairs({ "dracula", "onelight", "gruvbox", "onelight", "dracula" }) do
+    theme(tab, name)
+    wait(450)
+    state = dump(tab)
+    if not (follows(state, name) and state.background == (name == "onelight" and "light" or "dark")) then
+      every, detail = false, name .. ": " .. brief(state)
+    end
+  end
+  check("rapid: each dark and light flip is shown whole", every, detail)
+  focus(tab)
+  wait(400)
+
+  -- The screen, as :ColorRex check reads it.
+  state = dump(tab)
+  check("check: a setup written in roles has nothing on screen that is not the theme's", clean(state), stray_report(state))
+  send(tab, "\027:hi E2EStray guifg=#123456\r")
+  wait(200)
+  state = dump(tab)
+  check("check: a color from nowhere is found, with the role nearest it and how to fix it",
+    state.check:find("1 highlight from elsewhere wears colors that are not this theme's", 1, true) ~= nil
+      and state.check:find("E2EStray  fg #123456 (nearest role: ", 1, true) ~= nil
+      and state.check:find('groups = { E2EStray = { fg = "', 1, true) ~= nil, stray_report(state))
+  send(tab, "\027:hi clear E2EStray\r")
+
+  if not vim.uv.fs_stat(ICON_PLUGIN) then
+    print("skip  icons: nvim-web-devicons is not installed at " .. ICON_PLUGIN)
+    send(tab, "\027:qa!\r")
+    return
+  end
+  local function icon_count(icons)
+    local count = 0
+    for _ in pairs(icons) do
+      count = count + 1
+    end
+    return count
+  end
+  check("icons: the plugin defined hundreds, after the colorscheme and with no event to say so",
+    icon_count(state.icons) > 100, tostring(icon_count(state.icons)))
+  check("icons: none wears the color it shipped with", state.icons.DevIconLua ~= "#51a0cf" and state.icons.DevIconLua ~= nil,
+    tostring(state.icons.DevIconLua))
+  if state.icons.lualine_x_filetype_DevIconLua_normal then
+    check("icons: lualine's copy of the icon follows it",
+      state.icons.lualine_x_filetype_DevIconLua_normal == state.icons.DevIconLua,
+      vim.inspect({ state.icons.lualine_x_filetype_DevIconLua_normal, state.icons.DevIconLua }))
+  end
+  every, detail = true, nil
+  for _, name in ipairs({ "gruvbox", "onelight", "dracula_tint", "onelight", "dracula" }) do
+    theme(tab, name)
+    send(tab, "gS")
+    wait(500)
+    state = dump(tab)
+    if not (follows(state, name) and clean(state)) then
+      every, detail = false, name .. ": " .. stray_report(state)
+    end
+  end
+  check("icons: through dark and light themes, every icon keeps to the theme it is in", every, detail)
+  send(tab, "\027:qa!\r")
+  wait(300)
+
+  local fixed = setup_tab("icons-off", "COLORREX_E2E_ICONS=off")
+  wait(1500)
+  theme(fixed, "dracula")
+  send(fixed, "gS")
+  wait(600)
+  state = dump(fixed)
+  check("icons: off leaves the plugin's colors as they shipped", state.icons.DevIconLua == "#51a0cf",
+    tostring(state.icons.DevIconLua))
+  check("icons: and check counts them as one family, not hundreds of lines",
+    state.check:find("DevIcon%* %(%d+ groups%)") ~= nil and select(2, state.check:gsub("\n", "\n")) < 30, stray_report(state))
+  send(fixed, "\027:qa!\r")
+  wait(300)
+end
+
+-- COLORREX_E2E_ONLY names one part to run alone, such as `roles`.
+local PARTS = {
+  { "lifecycle", suite }, { "tmux", tmux_suite }, { "picker", picker_suite }, { "speed", speed_suite },
+  { "roles", roles_suite },
+}
 local function all()
-  suite()
-  tmux_suite()
-  picker_suite()
-  speed_suite()
+  local only = vim.env.COLORREX_E2E_ONLY
+  for _, part in ipairs(PARTS) do
+    if not only or only == part[1] then
+      part[2]()
+    end
+  end
 end
 
 local ok, err = xpcall(all, debug.traceback)

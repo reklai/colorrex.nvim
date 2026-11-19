@@ -116,7 +116,7 @@ local SELECT_ON = { "accent_soft", "element", "base" } -- the surfaces a picker'
 local ON_FLOAT = { "accent", "error", "warn", "info", "hint", "ok" }
 
 -- Roles used as a fill, which get an `on_` role for the text on top of them.
-local FILLS = { "accent", "error", "warn", "ok", "keyword", "search", "diff_text" }
+local FILLS = { "accent", "error", "warn", "ok", "info", "hint", "keyword", "search", "diff_text" }
 
 local POOL = { 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14 } -- the chromatic slots
 

@@ -97,7 +97,7 @@ Reports help most with these attached:
 | `:ColorRex` | Read the terminal's theme and repaint if it changed |
 | `:ColorRex status` | Show the active theme and the last sync |
 | `:ColorRex explain [group]` | Show where a group's color came from |
-| `:ColorRex check` | Judge the current theme against the promises |
+| `:ColorRex check` | Judge the current theme against the promises, and find colors on screen that are not the theme's |
 | `:ColorRex compile [name]` | Write a standalone colorscheme that needs no plugin |
 
 Bind any of them. `<Plug>(colorrex)` runs `:ColorRex`, and `status`, `explain`
@@ -158,6 +158,8 @@ require("colorrex").setup({
   voice = true,       -- let a theme's cursor color lead its code
   chunks = false,     -- mark where each chunk of code starts
   auto = true,        -- also sync on focus, dark/light changes, picker previews and typing pauses
+  icons = true,       -- give file icons the theme's colors
+  groups = {},        -- highlight groups of your own, written in roles
 })
 ```
 
@@ -177,6 +179,67 @@ the outer two levels count, which kept these to 3-5% of lines when measured in
 TypeScript, TSX, Lua and Python. They take your cursor color, so a theme's one
 signature color marks the shape of the code. A cursor nearest red gives way to the
 function color, so a landmark never reads as failure.
+
+## Plugins and your own highlights
+
+Most plugins link their highlights to standard groups, so they follow with nothing to
+do. The rest of this is for the ones that do not, and for anything you color yourself.
+
+Every group colorrex defines is written in roles: names such as `accent`, `keyword`,
+`element` and `border`, which the compiler fills from your theme. The same roles are
+yours to use, so what you write in them follows the terminal as the built-in groups
+do. `:help colorrex-roles` lists them all.
+
+**A highlight group.** Name its roles in `groups`:
+
+```lua
+require("colorrex").setup({
+  groups = {
+    FlashLabel = { fg = "on_accent", bg = "accent", bold = true },
+    WinBarPath = { fg = "muted", italic = true },
+    MyNote = { link = "Comment" },
+  },
+})
+```
+
+A color here is a role's name, never a hex value, so no group can drift from the
+theme. A name colorrex already defines is replaced. A role that does not exist fails
+at startup and says so. `:ColorRex explain` and `:ColorRex compile` treat these as
+they treat the built-in groups.
+
+**Anything else.** A statusline of your own, or a plugin that takes colors as options,
+can ask for the roles as colors:
+
+```lua
+vim.api.nvim_create_autocmd("ColorScheme", {
+  pattern = "colorrex",
+  callback = function()
+    local c = require("colorrex").roles()
+    vim.api.nvim_set_hl(0, "MyStatusMode", { fg = c.on_accent, bg = c.accent })
+  end,
+})
+```
+
+`ColorScheme` fires on every theme change, a picker's previews included, and `roles()`
+already holds the new theme when it does.
+
+**Finding what does not follow.** `:ColorRex check` also looks at the screen: every
+highlight Neovim holds, your plugins' included. It lists each color that is not the
+theme's, with the role nearest it and the line to put in `groups`. A theme color that
+a plugin dimmed or shaded counts as the theme's. A plugin's many groups are one line.
+Plugins define their highlights when they load or are first used, so open the plugin's
+window, then run it.
+
+**A transparent background.** With `transparent = true` Neovim's `Normal` has no
+background, and a plugin that asks for it gets none: most fall back to black or white.
+`roles().base` is the background's color, for a plugin that will take one.
+
+**File icons.** nvim-web-devicons ships a fixed color for every file type, hundreds of
+them, the same in every theme. Each takes the nearest of your theme's colors by hue, so
+a blue icon stays blue, and a grey one goes quiet. This also reaches lualine's copy of
+the icon. A theme with no orange has none to give: an orange icon takes its red or its
+yellow. `icons = false` leaves them as shipped, and is how to keep icon colors you set
+yourself in nvim-web-devicons.
 
 ## Languages
 

@@ -130,8 +130,11 @@ function M.check(colorscheme, opts)
       fail("faithful.surface", ("%s lies under code on %s, which never eases"):format(name, surface))
     end
   end
+  -- A group a user added under a name of their own is theirs to place: only they know
+  -- what is drawn on it. One that replaces a group of ours is judged as ours was.
+  local custom = colorscheme.custom or {}
   for name, spec in pairs(colorscheme.group_specs or {}) do
-    if spec.bg and not spec.fg and not TEXTLESS[name] then
+    if spec.bg and not spec.fg and not TEXTLESS[name] and custom[name] ~= "new" then
       under_code(name, spec.bg)
     end
   end

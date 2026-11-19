@@ -82,7 +82,8 @@ function M.explain(colorscheme, candidates)
     lines[#lines + 1] = ("%s links to %s"):format(name, specs[name].link)
     name = specs[name].link
   end
-  lines[#lines + 1] = name
+  local custom = colorscheme.custom and colorscheme.custom[name]
+  lines[#lines + 1] = custom and ("%s, from your setup"):format(name) or name
   local described = false
   for _, key in ipairs({ "fg", "bg", "sp" }) do
     local role_name = specs[name][key]
@@ -99,8 +100,83 @@ function M.explain(colorscheme, candidates)
   return table.concat(lines, "\n")
 end
 
---- The verdict on a colorscheme, with every adjustment that was needed.
-function M.check(colorscheme, failures)
+local MAX_FAMILIES = 12 -- lines of strays shown; the count above them is always whole
+local FAMILY_SIZE = 4 -- this many groups with one first word are shown as one line
+
+--- The first word of a group's name: DevIcon and DevIconLua are both Dev's.
+local function first_word(name)
+  return name:match("^@?%a%l*") or name
+end
+
+local function shared_prefix(a, b)
+  local length = 0
+  while length < #a and length < #b and a:byte(length + 1) == b:byte(length + 1) do
+    length = length + 1
+  end
+  return a:sub(1, length)
+end
+
+--- The colors on screen that are not the theme's, as lines. Groups a plugin names
+--- alike are one line, so a plugin with a color for every file type is not a thousand.
+local function stray_lines(strays)
+  local groups, order = {}, {}
+  for _, stray in ipairs(strays) do
+    if not groups[stray.group] then
+      groups[stray.group] = {}
+      order[#order + 1] = stray.group
+    end
+    table.insert(groups[stray.group], stray)
+  end
+  local families, by_word = {}, {}
+  for _, name in ipairs(order) do
+    local word = first_word(name)
+    local family = by_word[word]
+    if not family then
+      family = { names = {}, prefix = name }
+      by_word[word] = family
+      families[#families + 1] = family
+    end
+    family.names[#family.names + 1] = name
+    family.prefix = shared_prefix(family.prefix, name)
+  end
+
+  local lines = { ("%d highlight%s from elsewhere wear%s colors that are not this theme's:"):format(
+    #order, #order == 1 and "" or "s", #order == 1 and "s" or "") }
+  local function describe(name)
+    local parts = {}
+    for _, stray in ipairs(groups[name]) do
+      parts[#parts + 1] = ("%s %s (nearest role: %s)"):format(stray.key, stray.hex, stray.nearest)
+    end
+    return ("%s  %s"):format(name, table.concat(parts, ", "))
+  end
+  local shown = 0
+  for _, family in ipairs(families) do
+    if shown == MAX_FAMILIES then
+      lines[#lines + 1] = "  and more; fix these and run it again"
+      break
+    end
+    shown = shown + 1
+    if #family.names >= FAMILY_SIZE then
+      lines[#lines + 1] = ("  %s* (%d groups), such as %s"):format(family.prefix, #family.names, describe(family.names[1]))
+    else
+      for _, name in ipairs(family.names) do
+        lines[#lines + 1] = "  " .. describe(name)
+      end
+    end
+  end
+  lines[#lines + 1] = "to give one the theme's color, name a role for it in setup:"
+  local first = strays[1]
+  lines[#lines + 1] = ("  groups = { %s = { %s = %q } }"):format(
+    first.group:match("^[%a_][%w_]*$") and first.group or ("[%q]"):format(first.group), first.key, first.nearest)
+  if by_word.lualine then -- its own themes are fixed colors, or derived ones; ours is in roles
+    lines[#lines + 1] = "lualine follows the theme with: options = { theme = \"colorrex\" }"
+  end
+  return lines
+end
+
+--- The verdict on a colorscheme, with every adjustment that was needed. `strays` are
+--- the colors on screen that are not the theme's, when there is a screen to look at.
+function M.check(colorscheme, failures, strays)
   local lines = {}
   if #failures == 0 then
     lines[1] = "promises kept for this theme"
@@ -113,6 +189,13 @@ function M.check(colorscheme, failures)
   end
   for _, note in ipairs(colorscheme.notes) do
     lines[#lines + 1] = ("  %s: %s"):format(note.code, note.message)
+  end
+  if strays and #strays > 0 then
+    for _, line in ipairs(stray_lines(strays)) do
+      lines[#lines + 1] = line
+    end
+  elseif strays then
+    lines[#lines + 1] = "every highlight on screen wears this theme's colors"
   end
   return table.concat(lines, "\n"), #failures > 0 and "error" or nil
 end
