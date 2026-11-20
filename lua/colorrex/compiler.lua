@@ -24,8 +24,14 @@ M.ADOPTED = Strays.ADOPTED
 
 local COLOR_KEYS = { "fg", "bg", "sp" }
 
+local PUBLIC = {} -- the roles a user's group may name, and roles() hands out
+for _, name in ipairs(Roles.PUBLIC) do
+  PUBLIC[name] = true
+end
+
 --- A group spec names roles; the highlight it becomes holds their colors. `name` is
---- the group, when it is one a user wrote and a mistake in it is theirs to hear about.
+--- the group, when it is one a user wrote: a mistake in it is theirs to hear about, and
+--- it may name only the public roles, so the rest stay ours to change.
 local function resolve(spec, roles, name)
   local out = {}
   for key, value in pairs(spec) do
@@ -34,7 +40,7 @@ local function resolve(spec, roles, name)
   for _, key in ipairs(COLOR_KEYS) do
     if spec[key] then
       local role = roles[spec[key]]
-      if not role and name then
+      if name and not (role and PUBLIC[spec[key]]) then
         error(("colorrex: group '%s' names an unknown role '%s'; see :help colorrex-roles"):format(
           name, tostring(spec[key])), 0)
       end
@@ -93,11 +99,11 @@ function M.validate(opts)
   M.compile({ ansi = {} }, opts, "dark")
 end
 
---- Every role's color, by name: what the public `roles()` hands out.
+--- Every public role's color, by name: what the public `roles()` hands out.
 function M.palette(colorscheme)
   local out = {}
-  for name, role in pairs(colorscheme.roles) do
-    out[name] = role.hex
+  for _, name in ipairs(Roles.PUBLIC) do
+    out[name] = colorscheme.roles[name].hex
   end
   return out
 end

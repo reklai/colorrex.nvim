@@ -218,6 +218,34 @@ T.test("icons: every color handed out is one the theme's code is written in", fu
   end
 end)
 
+T.test("icons: none takes the color of an error or of failure, so red keeps its one meaning", function()
+  local reds = { "#e44d26", "#f54d27", "#cc3e44", "#701516", "#e8274b", "#ff3e00", "#9c4221", "#ff0000" }
+  local one_red = F.theme() -- one red for both slots, as TokyoNight has
+  one_red.ansi[1], one_red.ansi[9] = "#f7768e", "#f7768e"
+  local themes = { F.theme(), F.theme({ cursor = false }), F.theme({ fg = "#383a42", bg = "#fafafa" }), one_red }
+  for _, theme in ipairs(themes) do
+    for _, opts in ipairs({ {}, { voice = false } }) do
+      local colorscheme = compiled(theme, opts)
+      local roles = colorscheme.roles
+      for _, hex in ipairs(reds) do
+        local own = Compiler.adopt(colorscheme, { DevIconX = { fg = hex } }).DevIconX
+        T.ok(own ~= roles.error.hex and own ~= roles.failure.hex, hex .. " took the color of an error: " .. tostring(own))
+        T.ok(own ~= roles.muted.hex, hex .. " lost its color, when the theme had another to give")
+      end
+    end
+  end
+end)
+
+T.test("icons: a palette with red as its only color has none to give, so icons go quiet", function()
+  local ansi = {}
+  for slot = 0, 15 do
+    ansi[slot] = "#808080"
+  end
+  ansi[1], ansi[9] = "#cc3333", "#ff5555"
+  local colorscheme = compiled({ fg = "#d0d0d0", bg = "#101010", ansi = ansi })
+  T.eq(Compiler.adopt(colorscheme, { DevIconX = { fg = "#e44d26" } }).DevIconX, colorscheme.roles.muted.hex)
+end)
+
 local function start(opts, live)
   local host = F.fake_host({ live = live })
   local app = App.new(host, Config.resolve(opts))

@@ -156,9 +156,11 @@ auto            Also sync on focus and on dark or light changes, and when
 icons           Give file icons the theme's colors. nvim-web-devicons ships a
                 fixed color for every file type, the same in every theme.
                 Each takes the nearest of the theme's colors by hue, and a
-                grey takes the quiet text color. lualine's copy of an icon
-                follows. When false, they are left as shipped, which is also
-                how to keep icon colors you set yourself in that plugin.
+                grey takes the quiet text color. None takes the color of an
+                error, so a red icon takes the color beside red. lualine's
+                copy of an icon follows. When false, they are left as
+                shipped, which is also how to keep icon colors you set
+                yourself in that plugin.
 
 groups          Highlight groups of your own, or ones a plugin defines,
                 written as the built-in ones are; see |colorrex-plugins|.
@@ -206,8 +208,11 @@ ROLES                                                         *colorrex-roles*
 
 A role is a name for what a color is used for. The compiler gives each one a
 color from the terminal's theme, and every highlight group is written in them.
-`require("colorrex").roles()` returns a table from each name to its color, such
-as `accent = "#ff79c6"`.
+The ones below are yours to name in `groups`, and
+`require("colorrex").roles()` returns a table from each to its color, such as
+`accent = "#ff79c6"`. These names are kept: one that works today is not renamed
+or removed. The compiler has a few more for its own groups, which can change
+and cannot be named.
 
 Text:
     fg              the theme's foreground, never altered
@@ -223,9 +228,6 @@ Text:
     special         a help file's links
     error warn ok info hint
                     diagnostics and messages
-    predicted       a suggestion that is not in the file yet
-    landmark        where a chunk of code starts
-    select_accent   the accent, readable on the chosen item
 
 Surfaces, which text lies on:
     base            the theme's background, never altered
@@ -234,21 +236,16 @@ Surfaces, which text lies on:
     statusline      the status line
     subtle          a scrollbar or a quiet block
     visual          a selection
-    reference       a highlighted reference
     search          a search match
     accent_soft     the chosen item in a list
     border border_strong
                     lines between things
-    diff_add diff_change diff_delete diff_text
-                    the lines and words of a diff
-    stopped         where a debugger stopped
+    diff_add diff_change diff_delete
+                    the lines of a diff
 
 Pairs, for text on a fill:
-    on_accent on_error on_warn on_ok on_info on_hint on_keyword on_search
-    on_diff_text    the text that reads on that role as a background
-    float_accent float_error float_warn float_info float_hint float_ok
-                    that role as text on a float, which sits on element
-    diff_deleted    error, readable on a deleted line
+    on_accent on_error on_warn on_ok on_info on_hint on_search
+                    the text that reads on that role as a background
 
 LUALINE                                                     *colorrex-lualine*
 

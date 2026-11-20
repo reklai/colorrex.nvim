@@ -69,7 +69,12 @@ local function colors_of(colorscheme)
     return found
   end
   local set, list, names = {}, {}, {}
-  local slotted, has_slot = {}, {} -- the colors code is written in: a role on an ANSI slot
+  -- The colors decoration may wear: a role on an ANSI slot, less the two reds. `error`
+  -- and `failure` mean something went wrong wherever they show, and an icon sits beside
+  -- diagnostics in a file tree and a statusline, so it leaves both alone, whatever else
+  -- shares them.
+  local slotted, has_slot = {}, {}
+  local reserved = { [colorscheme.roles.error.hex:lower()] = true, [colorscheme.roles.failure.hex:lower()] = true }
   for name in pairs(colorscheme.roles) do
     names[#names + 1] = name
   end
@@ -81,7 +86,7 @@ local function colors_of(colorscheme)
       set[hex] = true
       list[#list + 1] = { hex = hex, name = name }
     end
-    if role.slot and not has_slot[hex] then
+    if role.slot and not has_slot[hex] and not reserved[hex] then
       has_slot[hex] = true
       slotted[#slotted + 1] = hex
     end
@@ -172,8 +177,9 @@ function M.find(colorscheme, live)
 end
 
 --- The theme's own color for a fixed one: the nearest in hue of the colors its code is
---- written in, so a blue icon stays blue in every theme. A grey takes the quiet text
---- color, and so does everything when the palette has no color at all.
+--- written in, so a blue icon stays blue in every theme. Red is left to errors, so a red
+--- icon takes the color beside red. A grey takes the quiet text color, and so does
+--- everything when the palette has no color to give.
 function M.nearest_hue(colorscheme, hex)
   local roles = colorscheme.roles
   if Color.chroma(hex) < Color.HUE_MIN_CHROMA then

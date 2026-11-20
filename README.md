@@ -186,9 +186,10 @@ Most plugins link their highlights to standard groups, so they follow with nothi
 do. The rest of this is for the ones that do not, and for anything you color yourself.
 
 Every group colorrex defines is written in roles: names such as `accent`, `keyword`,
-`element` and `border`, which the compiler fills from your theme. The same roles are
-yours to use, so what you write in them follows the terminal as the built-in groups
-do. `:help colorrex-roles` lists them all.
+`element` and `border`, which the compiler fills from your theme. The roles that name
+a meaning or a surface are yours to use, so what you write in them follows the terminal
+as the built-in groups do. `:help colorrex-roles` lists them, and a name listed there
+is kept: it is not renamed or removed.
 
 **A highlight group.** Name its roles in `groups`:
 
@@ -237,9 +238,11 @@ background, and a plugin that asks for it gets none: most fall back to black or 
 **File icons.** nvim-web-devicons ships a fixed color for every file type, hundreds of
 them, the same in every theme. Each takes the nearest of your theme's colors by hue, so
 a blue icon stays blue, and a grey one goes quiet. This also reaches lualine's copy of
-the icon. A theme with no orange has none to give: an orange icon takes its red or its
-yellow. `icons = false` leaves them as shipped, and is how to keep icon colors you set
-yourself in nvim-web-devicons.
+the icon. No icon takes the color of an error, so red keeps its one meaning beside the
+diagnostics in a file tree: a red icon takes the color next to red. A theme with no
+orange has none to give either, and an orange icon takes its yellow or its magenta.
+`icons = false` leaves them as shipped, and is how to keep icon colors you set yourself
+in nvim-web-devicons.
 
 ## Languages
 
