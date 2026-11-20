@@ -83,7 +83,10 @@ COMMANDS                                                           *:ColorRex*
                         no group, uses the one under the cursor.
 
 :ColorRex check         Judge the current theme against |colorrex-promises|,
-                        and list every adjustment that was needed.
+                        and list every adjustment that was needed. Then look
+                        at the screen: every highlight Neovim holds, your
+                        plugins' included, and list each color that is not
+                        the theme's; see |colorrex-plugins|.
 
 :ColorRex[!] compile [name]
                         Write the current theme to colors/{name}.lua in your
@@ -113,6 +116,8 @@ also turns the colorscheme on.
       voice = true,
       chunks = false,
       auto = true,
+      icons = true,
+      groups = {},
     })
 <
 transparent     Leave the background to the terminal, so its exact color and
@@ -147,6 +152,100 @@ auto            Also sync on focus and on dark or light changes, and when
                 ask the terminal for changes: every 30ms, every 250ms after 5
                 seconds with no change, and not at all after a minute with
                 none. When false, colors change only through |:ColorRex|.
+
+icons           Give file icons the theme's colors. nvim-web-devicons ships a
+                fixed color for every file type, the same in every theme.
+                Each takes the nearest of the theme's colors by hue, and a
+                grey takes the quiet text color. None takes the color of an
+                error, so a red icon takes the color beside red. lualine's
+                copy of an icon follows. When false, they are left as
+                shipped, which is also how to keep icon colors you set
+                yourself in that plugin.
+
+groups          Highlight groups of your own, or ones a plugin defines,
+                written as the built-in ones are; see |colorrex-plugins|.
+
+PLUGINS AND YOUR OWN HIGHLIGHTS                             *colorrex-plugins*
+
+Most plugins link their highlights to standard groups and follow with nothing
+to do. For one that does not, and for anything you color yourself, write it in
+|colorrex-roles| and it follows every theme.
+
+A highlight group goes in `groups`. Each color names a role, never a hex value.
+`link` names another group, and the styles are those of |nvim_set_hl()|. A name
+colorrex already defines is replaced. A role that does not exist is an error at
+startup.
+>lua
+    require("colorrex").setup({
+      groups = {
+        FlashLabel = { fg = "on_accent", bg = "accent", bold = true },
+        WinBarPath = { fg = "muted", italic = true },
+        MyNote = { link = "Comment" },
+      },
+    })
+<
+Anything else can ask for the roles as colors. |ColorScheme| fires on every
+theme change, and `roles()` already holds the new theme when it does.
+>lua
+    vim.api.nvim_create_autocmd("ColorScheme", {
+      pattern = "colorrex",
+      callback = function()
+        local c = require("colorrex").roles()
+        vim.api.nvim_set_hl(0, "MyStatusMode", { fg = c.on_accent, bg = c.accent })
+      end,
+    })
+<
+To find what does not follow, open the plugin's window and run |:ColorRex|
+check. It lists each highlight whose color is not the theme's, with the role
+nearest it and the line to put in `groups`. A theme color that a plugin dimmed
+or shaded counts as the theme's, and a plugin's many groups are one line.
+
+With `transparent` on, Normal has no background, and a plugin that asks for it
+gets none: most fall back to black or white. `roles().base` is the
+background's color, for a plugin that will take one.
+
+ROLES                                                         *colorrex-roles*
+
+A role is a name for what a color is used for. The compiler gives each one a
+color from the terminal's theme, and every highlight group is written in them.
+The ones below are yours to name in `groups`, and
+`require("colorrex").roles()` returns a table from each to its color, such as
+`accent = "#ff79c6"`. These names are kept: one that works today is not renamed
+or removed. The compiler has a few more for its own groups, which can change
+and cannot be named.
+
+Text:
+    fg              the theme's foreground, never altered
+    muted           quiet text: operators and punctuation
+    comment         comments
+    accent          the theme's cursor color, or a palette color without one
+    keyword func string type operator
+                    the syntax colors
+    failure         nil, errors, and everything that can fail
+    property        fields
+    number          values: numbers, booleans and constants
+    preproc         imports and macros
+    special         a help file's links
+    error warn ok info hint
+                    diagnostics and messages
+
+Surfaces, which text lies on:
+    base            the theme's background, never altered
+    cursorline      the cursor line
+    element         floats and menus
+    statusline      the status line
+    subtle          a scrollbar or a quiet block
+    visual          a selection
+    search          a search match
+    accent_soft     the chosen item in a list
+    border border_strong
+                    lines between things
+    diff_add diff_change diff_delete
+                    the lines of a diff
+
+Pairs, for text on a fill:
+    on_accent on_error on_warn on_ok on_info on_hint on_search
+                    the text that reads on that role as a background
 
 LUALINE                                                     *colorrex-lualine*
 

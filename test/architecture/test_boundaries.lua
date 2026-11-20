@@ -28,9 +28,10 @@ local GRAPH = {
   ["colorrex.roles"] = { "colorrex.color", "colorrex.roles.casting" },
   ["colorrex.compiler.standalone"] = {},
   ["colorrex.compiler.promises"] = { "colorrex.color", "colorrex.roles" },
+  ["colorrex.compiler.strays"] = { "colorrex.color" },
   ["colorrex.compiler"] = {
-    "colorrex.compiler.promises", "colorrex.compiler.standalone", "colorrex.groups", "colorrex.lualine",
-    "colorrex.roles", "colorrex.theme",
+    "colorrex.compiler.promises", "colorrex.compiler.standalone", "colorrex.compiler.strays", "colorrex.groups",
+    "colorrex.lualine", "colorrex.roles", "colorrex.theme",
   },
   ["colorrex.report"] = {},
   ["colorrex.app"] = {

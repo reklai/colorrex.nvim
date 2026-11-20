@@ -116,7 +116,20 @@ local SELECT_ON = { "accent_soft", "element", "base" } -- the surfaces a picker'
 local ON_FLOAT = { "accent", "error", "warn", "info", "hint", "ok" }
 
 -- Roles used as a fill, which get an `on_` role for the text on top of them.
-local FILLS = { "accent", "error", "warn", "ok", "keyword", "search", "diff_text" }
+local FILLS = { "accent", "error", "warn", "ok", "info", "hint", "keyword", "search", "diff_text" }
+
+-- The roles anyone outside may name: in a user's `groups`, and from the public roles().
+-- A role is here when it names a meaning, a surface, or the text that reads on a fill.
+-- The rest exist to make one group of ours readable in one place, such as an error on a
+-- deleted line, and stay free to change. A name added here is a promise to keep it:
+-- test/architecture/test_roles_named.lua pins the list.
+M.PUBLIC = {
+  "fg", "muted", "comment", "accent", "keyword", "func", "string", "type", "operator", "failure", "property",
+  "number", "preproc", "special", "error", "warn", "ok", "info", "hint",
+  "base", "cursorline", "element", "statusline", "subtle", "visual", "search", "accent_soft", "border",
+  "border_strong", "diff_add", "diff_change", "diff_delete",
+  "on_accent", "on_error", "on_warn", "on_ok", "on_info", "on_hint", "on_search",
+}
 
 local POOL = { 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14 } -- the chromatic slots
 

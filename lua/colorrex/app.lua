@@ -61,6 +61,7 @@ function App.new(host, config)
     noticed = false, -- the user has been told it has not
     announce = false, -- the next query's result is reported to the user
     applying = false, -- this Neovim is the one running :colorscheme
+    stuck = {}, -- family -> true when adopting it changed nothing, until the next render
     last = {}, -- the last sync: reason, completeness, outcome
   }, App)
 end
@@ -104,7 +105,18 @@ function App:load()
     return
   end
   self.host.render(self.colorscheme)
+  self.stuck = {}
   self:attach()
+  -- Other plugins repaint their own groups when ColorScheme fires, which is after this
+  -- returns. So theirs are looked at once they have.
+  self.host.defer(function()
+    self:adopt_icons()
+  end)
+end
+
+--- Refuse options no theme could compile with, before anything is changed by them.
+function App.validate(config)
+  Compiler.validate(config)
 end
 
 function App:attach()
@@ -138,6 +150,9 @@ function App:attach()
     end,
     pause = function()
       self:pause()
+    end,
+    settled = function()
+      self:adopt_icons()
     end,
     ui_enter = function()
       self:sync("launch")
@@ -191,6 +206,32 @@ function App:shape()
     end,
     can_refine = Meanings.can_refine,
   })
+end
+
+--- Give file icons the theme's colors. A plugin that ships a fixed color for every kind
+--- of file defines them whenever it loads, which nothing announces, and puts them back
+--- after every colorscheme and every change of 'background', as often as it likes. So
+--- this runs whenever Neovim settles, and costs one lookup: the family's sentinel. Only a
+--- sentinel in a color that is not the theme's starts the real work. If the work leaves
+--- it that way, nothing here can change it, and it is not tried again until the next
+--- render.
+function App:adopt_icons()
+  if not (self.terminal and self.config.icons) then
+    return
+  end
+  local astray = {}
+  for _, entry in ipairs(Compiler.ADOPTED) do
+    if not self.stuck[entry.family] and Compiler.unadopted(self.colorscheme, self.host.foreground(entry.sentinel)) then
+      astray[#astray + 1] = entry
+    end
+  end
+  if #astray == 0 then
+    return
+  end
+  self.host.recolor(Compiler.adopt(self.colorscheme, self.host.highlights()))
+  for _, entry in ipairs(astray) do
+    self.stuck[entry.family] = Compiler.unadopted(self.colorscheme, self.host.foreground(entry.sentinel)) or nil
+  end
 end
 
 --- Say once that this terminal gave us nothing, so that grey never goes unexplained.
@@ -514,9 +555,17 @@ function App:explain(group)
   self.host.notify(Report.explain(self:current(), candidates))
 end
 
+--- The promises, and then the screen: while this colorscheme is the one showing, every
+--- highlight Neovim holds is looked at, a plugin's own included.
 function App:check()
   local colorscheme = self:current()
-  self.host.notify(Report.check(colorscheme, Compiler.check(colorscheme, self.config)))
+  local strays = self.terminal and Compiler.strays(colorscheme, self.host.highlights()) or nil
+  self.host.notify(Report.check(colorscheme, Compiler.check(colorscheme, self.config), strays))
+end
+
+--- Every role's color, by name. A fresh table each time, so it is the caller's to keep.
+function App:roles()
+  return Compiler.palette(self:current())
 end
 
 --- Write the current theme as a standalone colorscheme.

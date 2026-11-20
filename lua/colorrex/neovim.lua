@@ -114,6 +114,7 @@ function M.new()
     on("FocusLost", handlers.blur)
     on("VimResume", handlers.resume)
     on("CursorHold", handlers.pause)
+    on("SafeState", handlers.settled)
     on("UIEnter", handlers.ui_enter)
     on("VimLeavePre", handlers.leaving)
     on("ColorScheme", function(ev)
@@ -467,6 +468,37 @@ function M.new()
       end
     end
     return names
+  end
+
+  local function hex(value)
+    return value and ("#%06x"):format(value) or nil
+  end
+
+  --- Every highlight Neovim holds, ours and everyone else's: name -> { fg, bg, sp, link }.
+  function host.highlights()
+    local out = {}
+    for name, spec in pairs(vim.api.nvim_get_hl(0, {})) do
+      out[name] = { fg = hex(spec.fg), bg = hex(spec.bg), sp = hex(spec.sp), link = spec.link }
+    end
+    return out
+  end
+
+  --- The text color a group sets itself, if it sets one.
+  function host.foreground(name)
+    local spec = vim.api.nvim_get_hl(0, { name = name, link = false, create = false })
+    return hex(spec.fg)
+  end
+
+  --- Change the text color of groups that exist, and nothing else about them.
+  --- changes: name -> "#rrggbb".
+  function host.recolor(changes)
+    for name, color in pairs(changes) do
+      local spec = vim.api.nvim_get_hl(0, { name = name, link = false, create = false })
+      if next(spec) ~= nil then
+        spec.fg = color
+        vim.api.nvim_set_hl(0, name, spec)
+      end
+    end
   end
 
   function host.colors_path(name)

@@ -19,8 +19,9 @@ local AREAS = {
 
 local M = {}
 
---- Every group spec for these options and syntax styles. A group defined in two
---- areas is refused: one would silently overwrite the other, in an order nobody chose.
+--- Every group spec for these options and syntax styles, and which of them came from
+--- the user's `groups`. A group defined in two areas is refused: one would silently
+--- overwrite the other, in an order nobody chose.
 function M.build(opts, styles)
   local define = {
     base = (not opts.transparent) and "base" or nil, -- nil leaves it to the terminal
@@ -52,7 +53,14 @@ function M.build(opts, styles)
       specs[name] = spec
     end
   end
-  return specs
+  -- The user's own come last, and are held to the same rule: a color is a role's name.
+  -- `custom` says which they are: "new", or "replaced" for a name defined above.
+  local custom = {}
+  for name, spec in pairs(opts.groups or {}) do
+    custom[name] = specs[name] and "replaced" or "new"
+    specs[name] = spec
+  end
+  return specs, custom
 end
 
 return M

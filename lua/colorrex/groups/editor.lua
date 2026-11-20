@@ -27,6 +27,12 @@ return function(define)
   -- only Neovim's termdebug defines, so it showed nothing. The program is here, which
   -- is not where your cursor is.
   G.debugPC = { bg = "stopped" }
+  -- Neovim's own aids for debugging itself: 'redrawdebug' flashes what it redraws, and
+  -- an error inside its command-line parser is drawn in this. Each ships a fixed color.
+  G.RedrawDebugClear = link("DiffChange")
+  G.RedrawDebugComposed = link("DiffAdd")
+  G.RedrawDebugRecompose = link("DiffDelete")
+  G.NvimInternalError = { fg = "on_error", bg = "error" }
   G.LineNr = { fg = "comment" }
   G.LineNrAbove = link("LineNr")
   G.LineNrBelow = link("LineNr")

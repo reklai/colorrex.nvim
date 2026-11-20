@@ -62,6 +62,28 @@ function F.fake_host(overrides)
   function host.saved_theme() return host.saved end
   function host.save_theme(text) host.saved = text end
   function host.groups_under_cursor() return host.cursor_groups or {} end
+  host.live = nil -- name -> { fg, bg, sp, link }: what Neovim would hold besides ours
+  host.reads = 0 -- how many times every highlight was asked for
+  function host.highlights()
+    host.reads = host.reads + 1
+    local out = {}
+    for name, spec in pairs(host.shown and host.shown.groups or {}) do
+      out[name] = { fg = spec.fg, bg = spec.bg, sp = spec.sp, link = spec.link }
+    end
+    for name, spec in pairs(host.live or {}) do
+      out[name] = { fg = spec.fg, bg = spec.bg, sp = spec.sp, link = spec.link }
+    end
+    return out
+  end
+  function host.foreground(name)
+    local spec = (host.live or {})[name]
+    return spec and spec.fg or nil
+  end
+  function host.recolor(changes)
+    for name, color in pairs(changes) do
+      host.live[name].fg = color
+    end
+  end
   function host.colors_path(name) return "/colors/" .. name .. ".lua" end
   function host.exists(path) return host.files ~= nil and host.files[path] ~= nil end
   function host.write(path, text)
