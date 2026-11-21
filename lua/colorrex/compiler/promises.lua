@@ -153,17 +153,23 @@ function M.check(colorscheme, opts)
     end
   end
 
-  local function too_faint(text, fill)
+  local function too_faint(text, fill, floor)
     local best = math.max(Color.contrast(fg, fill), Color.contrast(bg, fill))
-    return Color.contrast(text, fill) < math.min(opts.contrast, best, fg_contrast) - ROUNDING
+    return Color.contrast(text, fill) < math.min(floor or opts.contrast, best, fg_contrast) - ROUNDING
   end
 
+  local comment_floor = Roles.comment_floor(fg_contrast)
+  local specs = colorscheme.group_specs or {}
   for name, group in pairs(colorscheme.groups) do
     -- A theme's fg is never altered, so one already below the floor is the theme's to
     -- choose. A readable fg is no excuse: it can still be the wrong side of a fill.
+    -- Quiet text on the background itself (SignColumn and FoldColumn with transparent
+    -- off) sits on the comment floor, as LineNr and Comment do.
     local excused = group.fg == fg and fg_contrast < opts.contrast
+    local floor = specs[name] and specs[name].fg == "comment" and group.bg == bg
+      and math.min(opts.contrast, comment_floor) or opts.contrast
     if group.fg and group.bg and not excused and not name:find(DECORATION) and not name:find(DECORATION_ALT) then
-      if too_faint(group.fg, group.bg) then
+      if too_faint(group.fg, group.bg, floor) then
         fail("faithful.surface", ("%s is %.2f:1 on its own fill"):format(name, Color.contrast(group.fg, group.bg)))
       end
     end

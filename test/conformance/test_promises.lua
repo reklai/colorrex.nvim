@@ -86,18 +86,21 @@ for name, theme in pairs(HARD) do
   end)
 end
 
-T.test("promises: every Ghostty theme, at both contrast settings", function()
+T.test("promises: every Ghostty theme, at both contrast settings and opaque", function()
   local themes = corpus()
   if next(themes) == nil then
     T.skip("no theme corpus at " .. CORPUS)
   end
   local strict = Config.resolve({ contrast = 4.5 })
+  local opaque = Config.resolve({ transparent = false })
   local count = 0
   for name, theme in pairs(themes) do
     verify(name, theme)
-    local failures = Compiler.check(Compiler.compile(theme, strict), strict)
-    if #failures > 0 then
-      error(("%s at 4.5: %s"):format(name, failures[1].message), 0)
+    for label, opts in pairs({ ["4.5"] = strict, opaque = opaque }) do
+      local failures = Compiler.check(Compiler.compile(theme, opts), opts)
+      if #failures > 0 then
+        error(("%s at %s: %s"):format(name, label, failures[1].message), 0)
+      end
     end
     count = count + 1
   end

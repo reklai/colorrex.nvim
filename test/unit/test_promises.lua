@@ -466,6 +466,15 @@ T.test("promises: a readable fg on a fill it cannot read on is caught", function
   T.ok(codes(colorscheme)["faithful.surface"])
 end)
 
+T.test("promises: opaque mode keeps gutters on the comment floor", function()
+  local opaque = Config.resolve({ transparent = false })
+  local ansi = F.theme().ansi
+  ansi[8] = "#5f5c58" -- 2.5:1 on #161616: valid for comments, below the 3.0 code floor
+  local colorscheme = Compiler.compile(F.theme({ fg = "#d6d2cc", bg = "#161616", ansi = ansi }), opaque)
+  T.eq(colorscheme.groups.SignColumn.bg, "#161616")
+  T.eq(next(codes(colorscheme, opaque)), nil)
+end)
+
 T.test("promises: lines are not held to the standard of text", function()
   local colorscheme = good()
   colorscheme.groups.FloatBorder.fg = colorscheme.groups.FloatBorder.bg
