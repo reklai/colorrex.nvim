@@ -77,10 +77,19 @@ function M.explain(colorscheme, candidates)
   if not name then
     return ("%s is not a group colorrex defines"):format(candidates[1]), "warn"
   end
-  local lines = {}
-  while specs[name].link do
+  local lines, seen = {}, {}
+  while specs[name] and specs[name].link do
+    if seen[name] then
+      lines[#lines + 1] = ("%s links in a circle"):format(name)
+      return table.concat(lines, "\n"), "warn"
+    end
+    seen[name] = true
     lines[#lines + 1] = ("%s links to %s"):format(name, specs[name].link)
     name = specs[name].link
+  end
+  if not specs[name] then
+    lines[#lines + 1] = ("%s is not a group colorrex defines"):format(name)
+    return table.concat(lines, "\n"), "warn"
   end
   local custom = colorscheme.custom and colorscheme.custom[name]
   lines[#lines + 1] = custom and ("%s, from your setup"):format(name) or name

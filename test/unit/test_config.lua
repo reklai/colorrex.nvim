@@ -5,6 +5,7 @@ T.test("config: a typo fails loudly", function()
   T.ok(not pcall(Config.resolve, { transparant = true }))
   T.ok(not pcall(Config.resolve, { contrast = "high" }))
   T.ok(not pcall(Config.resolve, { contrast = 9 }))
+  T.ok(not pcall(Config.resolve, { contrast = 0 / 0 }))
 end)
 
 T.test("config: groups are checked by shape, and the first mistake is named", function()
@@ -21,6 +22,7 @@ T.test("config: groups are checked by shape, and the first mistake is named", fu
   refused({ Mine = { bold = "yes" } }, "bold must be true or false")
   refused({ Mine = { link = "Comment", bold = true } }, "can set nothing else")
   refused({ Mine = { blend = 300 } }, "blend must be a number")
+  refused({ Mine = { blend = 0 / 0 } }, "blend must be a number")
 end)
 
 T.test("config: groups are copied, so a table changed after setup changes nothing", function()

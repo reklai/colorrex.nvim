@@ -67,7 +67,7 @@ local function resolve_groups(groups)
           error(("colorrex: group '%s': link must name a highlight group"):format(name), 0)
         end
       elseif key == "blend" then
-        if type(value) ~= "number" or value < 0 or value > 100 then
+        if type(value) ~= "number" or not (value >= 0 and value <= 100) then
           error(("colorrex: group '%s': blend must be a number from 0 to 100"):format(name), 0)
         end
       elseif GROUP_STYLES[key] then
@@ -109,7 +109,7 @@ function M.resolve(opts)
     end
     out[key] = value
   end
-  if out.contrast < 1 or out.contrast > 4.5 then
+  if not (out.contrast >= 1 and out.contrast <= 4.5) then
     error("colorrex: option 'contrast' must be between 1 and 4.5", 0)
   end
   out.groups = resolve_groups(out.groups)

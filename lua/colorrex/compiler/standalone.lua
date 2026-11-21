@@ -18,12 +18,12 @@ local function key_text(key)
   return key:match("^[%a_][%w_]*$") and key or ("[%q]"):format(key)
 end
 
---- Lua source for what a compiled colorscheme holds: strings, booleans and tables.
+--- Lua source for what a compiled colorscheme holds: strings, booleans, numbers and tables.
 local function value_text(value, indent)
   if type(value) == "string" then
     return ("%q"):format(value)
   end
-  if type(value) == "boolean" then
+  if type(value) == "boolean" or type(value) == "number" then
     return tostring(value)
   end
   local keys = sorted_keys(value)

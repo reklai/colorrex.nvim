@@ -87,10 +87,15 @@ T.test("groups: yours are judged by the promises, on what can be judged", functi
 end)
 
 T.test("groups: the standalone file holds them, in the theme's colors", function()
-  local colorscheme, config = compile({ FlashLabel = { fg = "on_accent", bg = "accent" }, Linked = { link = "Comment" } })
+  local colorscheme, config = compile({
+    FlashLabel = { fg = "on_accent", bg = "accent", blend = 15 },
+    Linked = { link = "Comment" },
+  })
   local source = Compiler.standalone(colorscheme, "mine")
   T.ok(source:find("FlashLabel", 1, true))
+  T.ok(source:find("blend = 15", 1, true), source)
   T.ok(source:find("Linked", 1, true))
+  T.ok(loadstring(source), "standalone output must stay valid Lua")
   T.eq(#Compiler.check(colorscheme, config), 0)
 end)
 
@@ -101,6 +106,28 @@ T.test("groups: explain says which are yours", function()
   T.ok(text:find("role accent", 1, true), text)
   T.ok(Report.explain(colorscheme, { "Comment" }):find("Comment, from your setup", 1, true))
   T.ok(not Report.explain(colorscheme, { "String" }):find("from your setup", 1, true))
+end)
+
+T.test("groups: explain handles links to outside groups and links in a circle", function()
+  local colorscheme = compile({
+    Outside = { link = "SomePluginGroup" },
+    First = { link = "Second" },
+    Second = { link = "First" },
+    Self = { link = "Self" },
+  })
+  local text, level = Report.explain(colorscheme, { "Outside" })
+  T.eq(level, "warn")
+  T.ok(text:find("Outside links to SomePluginGroup", 1, true), text)
+  T.ok(text:find("SomePluginGroup is not a group colorrex defines", 1, true), text)
+
+  text, level = Report.explain(colorscheme, { "First" })
+  T.eq(level, "warn")
+  T.ok(text:find("First links to Second", 1, true), text)
+  T.ok(text:find("First links in a circle", 1, true), text)
+
+  text, level = Report.explain(colorscheme, { "Self" })
+  T.eq(level, "warn")
+  T.ok(text:find("Self links in a circle", 1, true), text)
 end)
 
 T.test("groups: setup can add and remove them while running", function()
