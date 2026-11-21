@@ -108,7 +108,7 @@ M.ON_SURFACE = { text = 2.5, comment = 2.25 }
 local EASE_STEP = 0.01
 local FIRM_STEP = 0.02
 
-local MUTED_ON = { "cursorline", "element" } -- the surfaces quiet text is used on
+local MUTED_ON = { "cursorline", "element", "base" } -- the surfaces quiet text is used on
 local SELECT_ON = { "accent_soft", "element", "base" } -- the surfaces a picker's matches are on
 
 -- Roles used as text on a float, which sits on `element` and not on the background
@@ -784,6 +784,7 @@ function M.solve(theme, opts)
     roles["float_" .. name] = lifted_onto(name, "element", name .. " on a float")
   end
   roles.diff_deleted = lifted_onto("error", "diff_delete", "error on a deleted line")
+  roles.match_accent = lifted_onto("accent", "reference", "accent on a matching delimiter")
 
   --- A color lifted against every surface it is used on. On a mid-tone background they
   --- can sit either side of the point where lifting changes direction, so one lift
@@ -822,7 +823,20 @@ function M.solve(theme, opts)
     roles["on_" .. name] = { hex = on_bg and bg or fg, source = on_bg and "bg" or "fg" }
   end
 
-  return { roles = roles, styles = styles, notes = notes, casting = casting, voice = voice and voice.name }
+  -- Definitions take bold so a file scans by its shape, without spending a color.
+  -- Only when that role has its color to itself among syntax roles, so bold never
+  -- makes a definition look like another role separated only by style.
+  local function bold_free(name)
+    for _, other in ipairs(M.SYNTAX) do
+      if other.name ~= name and Color.distance(roles[other.name].hex, roles[name].hex) < Color.DISTINCT then
+        return false
+      end
+    end
+    return true
+  end
+  local bold_defs = { func = bold_free("func"), type = bold_free("type") }
+
+  return { roles = roles, styles = styles, bold_defs = bold_defs, notes = notes, casting = casting, voice = voice and voice.name }
 end
 
 return M

@@ -24,6 +24,15 @@ return function(define)
   end
   G[Meanings.GROUP.negation].bold = true
 
+  -- Definitions take weight so a file scans by its shape, while calls and uses stay plain.
+  if define.bold_def("call") then
+    G["@function"].bold = true
+    G["@function.method"].bold = true
+  end
+  if define.bold_def("type") then
+    G["@type.definition"].bold = true
+  end
+
   each(G, {
     "@keyword.coroutine", "@keyword.function", "@keyword.type", "@keyword.modifier",
     "@keyword.repeat", "@keyword.return", "@keyword.debug", "@keyword.conditional",
@@ -46,14 +55,18 @@ return function(define)
   G["@markup.strikethrough"] = { strikethrough = true }
   G["@markup.underline"] = { underline = true }
   G["@markup.heading"] = { fg = "accent", bold = true }
-  for level = 1, 6 do
-    G["@markup.heading." .. level] = link("@markup.heading")
-  end
+  G["@markup.heading.1"] = { fg = "accent", bold = true, underline = true }
+  G["@markup.heading.2"] = { fg = "func", bold = true }
+  G["@markup.heading.3"] = { fg = "type", bold = true }
+  G["@markup.heading.4"] = { fg = "fg", bold = true }
+  G["@markup.heading.5"] = { fg = "fg", bold = true }
+  G["@markup.heading.6"] = { fg = "muted", bold = true }
   G["@markup.quote"] = { fg = "muted", italic = true }
   G["@markup.math"] = syn("operator")
   G["@markup.link"] = { fg = "accent" }
   G["@markup.link.label"] = { fg = "accent" }
-  G["@markup.link.url"] = { fg = "accent", underline = true }
+  -- A link's label is what you read; the raw URL beside it recedes into the background.
+  G["@markup.link.url"] = { fg = "comment", underline = true }
   G["@markup.raw"] = syn("string")
   G["@markup.raw.block"] = syn("string")
   G["@markup.list"] = syn("operator")

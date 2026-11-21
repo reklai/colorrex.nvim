@@ -59,7 +59,7 @@ function M.compile(theme, opts, background)
   local fingerprint = Roles.fingerprint(signature)
   local solved = Roles.solve(filled, opts)
 
-  local group_specs, custom = Groups.build(opts, solved.styles)
+  local group_specs, custom = Groups.build(opts, solved.styles, solved.bold_defs)
   local groups = {}
   for name, spec in pairs(group_specs) do
     groups[name] = resolve(spec, solved.roles, custom[name] and name)

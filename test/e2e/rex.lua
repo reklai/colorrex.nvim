@@ -298,11 +298,11 @@ local function suite()
     return (";" .. style .. ";"):find(";1;", 1, true) ~= nil
   end
   local on = name_style()
-  check("chunks: a landmark is drawn in the terminal", bold(on), tostring(on))
+  check("chunks: a landmark is drawn in the terminal", bold(on) and draws(on, "#ff79c6"), tostring(on))
   send(shape, "\027:lua require('colorrex').setup({ chunks = false })\r")
   wait(400)
   local off = name_style()
-  check("chunks: and is gone when turned off", not bold(off), tostring(off))
+  check("chunks: and is gone when turned off", not draws(off, "#ff79c6") and draws(off, "#bd93f9"), tostring(off))
   send(shape, "\027:qa!\r")
 
   -- Meanings are drawn on redraw, over what the highlighter paints, so only a terminal

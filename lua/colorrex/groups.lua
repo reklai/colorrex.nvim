@@ -22,7 +22,8 @@ local M = {}
 --- Every group spec for these options and syntax styles, and which of them came from
 --- the user's `groups`. A group defined in two areas is refused: one would silently
 --- overwrite the other, in an order nobody chose.
-function M.build(opts, styles)
+function M.build(opts, styles, bold_defs)
+  bold_defs = bold_defs or {}
   local define = {
     base = (not opts.transparent) and "base" or nil, -- nil leaves it to the terminal
     link = function(to)
@@ -38,6 +39,12 @@ function M.build(opts, styles)
       local role = assert(Meanings.ROLE[name], "unknown meaning " .. tostring(name))
       return styles[role] and { fg = role, bold = styles[role].bold, italic = styles[role].italic,
         underline = styles[role].underline } or { fg = role }
+    end,
+    --- Whether definitions for `name` can take bold without colliding with a role
+    --- separated only by style.
+    bold_def = function(name)
+      local role = assert(Meanings.ROLE[name], "unknown meaning " .. tostring(name))
+      return bold_defs[role] == true
     end,
     each = function(groups, names, spec)
       for _, name in ipairs(names) do

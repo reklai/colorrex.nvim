@@ -413,6 +413,51 @@ T.test("servers: a token speaks only where a server knows what a grammar cannot"
   T.eq(compiled.group_specs["@lsp.type.comment.lua"], nil)
   -- What a server knows beyond what a word is never changes its color.
   T.eq(G["@lsp.mod.deprecated"].fg, nil)
+  T.eq(G["@lsp.mod.unsafe"].fg, nil)
+  T.ok(G["@lsp.mod.unsafe"].underdotted and G["@lsp.mod.unsafe"].sp == R.warn.hex)
+  for _, name in ipairs({ "@lsp.typemod.variable.mutable", "@lsp.typemod.parameter.mutable", "@lsp.typemod.static.mutable" }) do
+    T.eq(G[name].fg, nil, name)
+    T.ok(G[name].underline and G[name].sp == R.muted.hex, name)
+  end
+  T.eq(G["@lsp.mod.mutable"], nil, "operators and calls stay unmarked")
+end)
+
+T.test("practical: definitions take bold when the palette keeps roles apart, and back off when it cannot", function()
+  local compiled = Compiler.compile(F.theme(), Config.resolve())
+  local G = compiled.groups
+  T.ok(G["@function"].bold and G["@function.method"].bold and G["@type.definition"].bold)
+  T.ok(G["@lsp.typemod.struct.declaration"].bold and G["@lsp.typemod.struct.declaration"].fg == nil)
+  T.ok(not G["@function.call"].bold and not G["@function.method.call"].bold and not G["@type"].bold)
+  T.ok(not G.Function.bold and not G.Type.bold, "regex syntax cannot separate definitions from calls")
+
+  local mono = { fg = "#cccccc", bg = "#000000", ansi = {} }
+  for slot = 0, 15 do
+    mono.ansi[slot] = slot == 0 and "#000000" or slot == 15 and "#ffffff" or "#777777"
+  end
+  local flat = Compiler.compile(mono, Config.resolve())
+  T.eq(next(flat.groups["@lsp.typemod.struct.declaration"]), nil, "no extra bold when styles separate roles")
+  T.eq(flat.groups["@function"].bold, flat.styles.func.bold)
+  T.eq(flat.groups["@type.definition"].bold, flat.styles.type.bold)
+end)
+
+T.test("practical: editing orientation and scannable markdown stay in the theme's roles", function()
+  local compiled = Compiler.compile(F.theme(), Config.resolve())
+  local G, R = compiled.groups, compiled.roles
+  T.eq(G.CursorLineNr.fg, R.accent.hex)
+  T.ok(G.CursorLineNr.bold)
+  T.eq(G.MatchParen.fg, R.match_accent.hex)
+  T.eq(G.MatchParen.bg, R.reference.hex)
+  T.ok(G.MatchParen.bold and G.MatchParen.underline)
+  T.eq(G.NormalNC.fg, R.muted.hex)
+  T.eq(G.NormalNC.bg, nil)
+  T.eq(G.WinBar.fg, R.float_accent.hex)
+  T.ok(G.WinBar.bold)
+  -- Markdown headings step through existing roles; raw URLs recede behind link labels.
+  T.ok(G["@markup.heading.1"].fg == R.accent.hex and G["@markup.heading.1"].underline)
+  T.eq(G["@markup.heading.2"].fg, R.func.hex)
+  T.eq(G["@markup.heading.3"].fg, R.type.hex)
+  T.eq(G["@markup.link.label"].fg, R.accent.hex)
+  T.ok(G["@markup.link.url"].fg == R.comment.hex and G["@markup.link.url"].underline)
 end)
 
 T.test("practical: red means something, so a builtin is what it is", function()

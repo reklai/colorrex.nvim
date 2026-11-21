@@ -5,7 +5,8 @@ return function(define)
 
   -- Editor --------------------------------------------------------------------
   G.Normal = { fg = "fg", bg = base }
-  G.NormalNC = { fg = "fg", bg = base }
+  -- Plain text in an inactive split recedes quietly while keeping transparency intact.
+  G.NormalNC = { fg = "muted", bg = base }
   G.NormalFloat = { fg = "fg", bg = "element" }
   G.FloatBorder = { fg = "border_strong", bg = "element" }
   G.FloatTitle = { fg = "float_accent", bg = "element", bold = true }
@@ -20,7 +21,7 @@ return function(define)
   G.TermCursor = { reverse = true }
   G.CursorColumn = { bg = "cursorline" }
   G.CursorLine = { bg = "cursorline" }
-  G.CursorLineNr = { fg = "fg", bold = true }
+  G.CursorLineNr = { fg = "accent", bold = true }
   G.CursorLineFold = { fg = "muted", bg = "cursorline" }
   G.CursorLineSign = { bg = "cursorline" }
   -- Where a debugger has stopped the program. nvim-dap draws the line with this, which
@@ -45,7 +46,8 @@ return function(define)
   G.SpecialKey = { fg = "border_strong" }
   G.Whitespace = { fg = "border" }
   G.WinSeparator = { fg = "border", bg = base }
-  G.MatchParen = { fg = "accent", bold = true }
+  -- A single matching bracket is easy to lose in dense code; a quiet fill anchors it.
+  G.MatchParen = { fg = "match_accent", bg = "reference", bold = true, underline = true }
   G.ColorRexLandmark = { fg = "landmark", bold = true }
   G.Title = { fg = "accent", bold = true }
   G.Visual = { bg = "visual" }
@@ -80,7 +82,7 @@ return function(define)
   G.TabLine = { fg = "muted", bg = "cursorline" }
   G.TabLineFill = { bg = "cursorline" }
   G.TabLineSel = { fg = "on_accent", bg = "accent", bold = true }
-  G.WinBar = { fg = "fg", bg = "element" }
+  G.WinBar = { fg = "float_accent", bg = "element", bold = true }
   G.WinBarNC = { fg = "muted", bg = "cursorline" }
 
   -- Popup menu ----------------------------------------------------------------
